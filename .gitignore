@@ -1,0 +1,22 @@
+# sbt
+target/
+project/target/
+project/project/
+.bsp/
+.metals/
+.bloop/
+
+# IDE
+.idea/
+.vscode/
+*.iml
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Native lib downloads
+scala-native-curl-provider/natives/
+
+# sbt
+.sbt/

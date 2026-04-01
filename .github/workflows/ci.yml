@@ -1,0 +1,133 @@
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+
+env:
+  JAVA_VERSION: "17"
+  JAVA_DISTRIBUTION: "zulu"
+
+jobs:
+  # ── Cross-compile plugin for sbt 1.x (and later 2.x) ────────────
+  compile-plugin:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-java@v4
+        with:
+          java-version: ${{ env.JAVA_VERSION }}
+          distribution: ${{ env.JAVA_DISTRIBUTION }}
+          cache: sbt
+      - uses: sbt/setup-sbt@v1
+      - name: Compile plugin
+        run: sbt +plugin/compile
+
+  # ── Build scala-native-curl-provider artifact ────────────────────
+  build-curl-provider:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-java@v4
+        with:
+          java-version: ${{ env.JAVA_VERSION }}
+          distribution: ${{ env.JAVA_DISTRIBUTION }}
+          cache: sbt
+      - uses: sbt/setup-sbt@v1
+      - name: Download static curl libraries
+        run: |
+          chmod +x scala-native-curl-provider/scripts/download-curl.sh
+          scala-native-curl-provider/scripts/download-curl.sh
+      - name: Build and publish locally
+        run: sbt scalaNativeCurlProvider/publishLocal
+      - name: Upload curl provider artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: curl-provider-ivy
+          path: ~/.ivy2/local/com.kubuszok/scala-native-curl-provider/
+          retention-days: 1
+
+  # ── Test Scala Native linking ────────────────────────────────────
+  integration-native:
+    needs: [compile-plugin, build-curl-provider]
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-java@v4
+        with:
+          java-version: ${{ env.JAVA_VERSION }}
+          distribution: ${{ env.JAVA_DISTRIBUTION }}
+          cache: sbt
+      - uses: sbt/setup-sbt@v1
+      - name: Install zig
+        uses: goto-bus-stop/setup-zig@v2
+        with:
+          version: 0.14.0
+      - name: Determine version
+        id: version
+        run: echo "version=$(sbt --no-colors 'print plugin/version' | tail -1 | tr -d '[:space:]')" >> $GITHUB_OUTPUT
+      - name: Publish plugin locally
+        run: sbt +plugin/publishLocal
+      - name: Download curl provider artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: curl-provider-ivy
+          path: ~/.ivy2/local/com.kubuszok/scala-native-curl-provider/
+      - name: Download static curl libraries
+        run: |
+          chmod +x scala-native-curl-provider/scripts/download-curl.sh
+          scala-native-curl-provider/scripts/download-curl.sh
+      - name: Publish curl provider locally
+        run: sbt scalaNativeCurlProvider/publishLocal
+      - name: Test Native linking (host platform)
+        working-directory: test-project
+        run: sbt -Dplugin.version=${{ steps.version.outputs.version }} testNative/nativeLink
+
+  # ── Test JLink JVM bundling ──────────────────────────────────────
+  integration-jlink:
+    needs: [compile-plugin]
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            platform: linux-x86_64
+          - os: macos-latest
+            platform: macos-aarch64
+          - os: windows-latest
+            platform: windows-x86_64
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-java@v4
+        with:
+          java-version: ${{ env.JAVA_VERSION }}
+          distribution: ${{ env.JAVA_DISTRIBUTION }}
+          cache: sbt
+      - uses: sbt/setup-sbt@v1
+      - name: Determine version
+        id: version
+        shell: bash
+        run: echo "version=$(sbt --no-colors 'print plugin/version' | tail -1 | tr -d '[:space:]')" >> $GITHUB_OUTPUT
+      - name: Publish plugin locally
+        shell: bash
+        run: sbt +plugin/publishLocal
+      - name: Test JLink packaging
+        shell: bash
+        working-directory: test-project
+        run: sbt -Dplugin.version=${{ steps.version.outputs.version }} "testJVM/releasePlatform ${{ matrix.platform }}"
+      - name: Verify archive exists
+        shell: bash
+        run: |
+          ls -la test-project/jvm/target/release-dist/
+          echo "JLink packaging verification passed"

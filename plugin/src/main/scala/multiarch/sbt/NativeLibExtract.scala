@@ -143,6 +143,39 @@ object NativeLibExtract {
   private def localPlatformDir(crossDir: File, platform: Platform): File =
     crossDir / platform.classifier
 
+  // ── Windows .lib alias creation ──────────────────────────────────
+
+  /** On Windows, create `foo.lib` copies of `libfoo.a` archives.
+    *
+    * The MSVC linker (used by Scala Native on Windows) resolves `@link("foo")`
+    * as `foo.lib`, but GCC-style static archives from provider JARs are named
+    * `libfoo.a`. This creates `.lib` copies so both naming conventions resolve.
+    */
+  private def createWindowsLibAliases(dir: File, log: sbt.util.Logger): Unit = {
+    val files = IO.listFiles(dir).filter(_.isFile)
+    for (f <- files) {
+      val name = f.getName
+      // libfoo.a → foo.lib
+      if (name.startsWith("lib") && name.endsWith(".a")) {
+        val alias = name.stripPrefix("lib").stripSuffix(".a") + ".lib"
+        val target = new java.io.File(dir, alias)
+        if (!target.exists()) {
+          Files.copy(f.toPath, target.toPath)
+          log.info(s"[native-lib] Created Windows alias: $alias -> $name")
+        }
+      }
+      // libfoo.lib → foo.lib
+      else if (name.startsWith("lib") && name.endsWith(".lib")) {
+        val alias = name.stripPrefix("lib")
+        val target = new java.io.File(dir, alias)
+        if (!target.exists()) {
+          Files.copy(f.toPath, target.toPath)
+          log.info(s"[native-lib] Created Windows alias: $alias -> $name")
+        }
+      }
+    }
+  }
+
   // ── Settings ──────────────────────────────────────────────────────
 
   /** Settings for projects that consume native libraries from classifier JARs. */
@@ -179,6 +212,10 @@ object NativeLibExtract {
               log.info(s"[native-lib] Extracting native libs from ${jars.size} JAR(s)...")
               IO.delete(outDir)
               jars.foreach(jar => extractFromJar(jar, platform, outDir, log))
+              // On Windows, the MSVC linker resolves @link("foo") as foo.lib, but
+              // provider JARs ship GCC-style libfoo.a archives. Create .lib copies
+              // so both manifest fullPath entries and @link annotations resolve.
+              if (platform.isWindows) createWindowsLibAliases(outDir, log)
               outDir
             } else {
               sys.error(

@@ -222,30 +222,42 @@ object NativeLibBundle {
   ): Seq[String] = {
     val classifier = platform.classifier
 
-    // Collect all library names and per-platform flags
+    // Collect all library names and per-platform flags.
+    // Libraries that don't declare the current platform in their platforms map are skipped entirely.
     val libraryFlags = manifests.flatMap { manifest =>
       manifest.libraries.flatMap { lib =>
-        // When fullPath is true and the library directory is known, emit the absolute
-        // path to the static archive instead of -l<name>. This bypasses linker search
-        // path ordering issues (e.g. Apple ld64 deduplicating -l flags).
-        val libLink = if (lib.fullPath) {
-          libDirOpt match {
-            case Some(dir) =>
-              val archive = new java.io.File(dir, s"lib${lib.name}.a")
-              if (archive.exists()) Seq(archive.getAbsolutePath)
-              else {
-                log.warn(s"[native-bundle] fullPath requested for '${lib.name}' but ${archive.getName} not found in ${dir.getAbsolutePath}, falling back to -l flag")
-                Seq(s"-l${lib.name}")
-              }
-            case None =>
-              log.warn(s"[native-bundle] fullPath requested for '${lib.name}' but no library directory set, falling back to -l flag")
-              Seq(s"-l${lib.name}")
-          }
+        // Skip this library if it doesn't declare the current platform
+        if (lib.platforms.nonEmpty && !lib.platforms.contains(classifier)) {
+          Seq.empty
         } else {
-          Seq(s"-l${lib.name}")
+          // When fullPath is true and the library directory is known, emit the absolute
+          // path to the static archive instead of -l<name>. This bypasses linker search
+          // path ordering issues (e.g. Apple ld64 deduplicating -l flags).
+          val libLink = if (lib.fullPath) {
+            libDirOpt match {
+              case Some(dir) =>
+                // Try multiple naming conventions: libfoo.a (Unix), libfoo.lib (MSVC), foo.lib (MSVC)
+                val candidates = Seq(
+                  new java.io.File(dir, s"lib${lib.name}.a"),
+                  new java.io.File(dir, s"lib${lib.name}.lib"),
+                  new java.io.File(dir, s"${lib.name}.lib")
+                )
+                candidates.find(_.exists()) match {
+                  case Some(archive) => Seq(archive.getAbsolutePath)
+                  case None =>
+                    log.warn(s"[native-bundle] fullPath requested for '${lib.name}' but no archive found in ${dir.getAbsolutePath} (tried: ${candidates.map(_.getName).mkString(", ")}), falling back to -l flag")
+                    Seq(s"-l${lib.name}")
+                }
+              case None =>
+                log.warn(s"[native-bundle] fullPath requested for '${lib.name}' but no library directory set, falling back to -l flag")
+                Seq(s"-l${lib.name}")
+            }
+          } else {
+            Seq(s"-l${lib.name}")
+          }
+          val platFlags = lib.platforms.get(classifier).map(_.flags).getOrElse(Seq.empty)
+          libLink ++ platFlags
         }
-        val platFlags = lib.platforms.get(classifier).map(_.flags).getOrElse(Seq.empty)
-        libLink ++ platFlags
       }
     }
 

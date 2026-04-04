@@ -76,6 +76,8 @@ object NativeLibBundlePlugin extends AutoPlugin {
           else if (platform.isLinux) Seq(s"-Wl,-rpath,${libDir.getAbsolutePath}", "-Wl,-rpath,$$ORIGIN")
           else Seq.empty
         c.withEmbedResources(true)
+          .withResourceIncludePatterns(Seq("**.png", "**.jpg", "**.wav", "**.ogg", "**.mp3",
+            "**.txt", "**.json", "**.xml", "**.g3dj", "**.g3db", "**.atlas", "**.fnt", "**.tmx"))
           .withLinkingOptions(c.linkingOptions ++ libDirFlag ++ merged ++ rpathFlags)
       }
     )

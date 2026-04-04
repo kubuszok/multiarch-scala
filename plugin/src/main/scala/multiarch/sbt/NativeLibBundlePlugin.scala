@@ -60,15 +60,22 @@ object NativeLibBundlePlugin extends AutoPlugin {
         val extractedDir = NativeLibExtract.nativeLibExtract.value
         if (extractedDir.exists()) Some(extractedDir) else None
       },
-      // Auto-wire nativeConfig with extracted lib dir + merged manifest flags
+      // Auto-wire nativeConfig with extracted lib dir + merged manifest flags + rpath
       nativeConfig := {
-        val c      = nativeConfig.value
+        val c        = nativeConfig.value
         // Trigger extraction to ensure .a files are present
-        val libDir = NativeLibExtract.nativeLibExtract.value
-        val merged = NativeLibBundle.mergedLinkerFlags.value
+        val libDir   = NativeLibExtract.nativeLibExtract.value
+        val merged   = NativeLibBundle.mergedLinkerFlags.value
+        val platform = NativeLibExtract.nativeLibPlatform.value
 
         val libDirFlag = if (libDir.exists()) Seq(s"-L${libDir.getAbsolutePath}") else Seq.empty
-        c.withLinkingOptions(c.linkingOptions ++ libDirFlag ++ merged)
+        // rpath so the binary can find shared libraries (.so/.dylib) at runtime
+        // without requiring LD_LIBRARY_PATH or DYLD_LIBRARY_PATH
+        val rpathFlags = if (!libDir.exists()) Seq.empty
+          else if (platform.isMac) Seq("-rpath", libDir.getAbsolutePath, "-rpath", "@executable_path")
+          else if (platform.isLinux) Seq(s"-Wl,-rpath,${libDir.getAbsolutePath}", "-Wl,-rpath,$$ORIGIN")
+          else Seq.empty
+        c.withLinkingOptions(c.linkingOptions ++ libDirFlag ++ merged ++ rpathFlags)
       }
     )
 }

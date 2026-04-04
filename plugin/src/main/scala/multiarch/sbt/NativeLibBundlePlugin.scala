@@ -75,7 +75,8 @@ object NativeLibBundlePlugin extends AutoPlugin {
           else if (platform.isMac) Seq("-rpath", libDir.getAbsolutePath, "-rpath", "@executable_path")
           else if (platform.isLinux) Seq(s"-Wl,-rpath,${libDir.getAbsolutePath}", "-Wl,-rpath,$$ORIGIN")
           else Seq.empty
-        c.withLinkingOptions(c.linkingOptions ++ libDirFlag ++ merged ++ rpathFlags)
+        c.withEmbedResources(true)
+          .withLinkingOptions(c.linkingOptions ++ libDirFlag ++ merged ++ rpathFlags)
       }
     )
 }

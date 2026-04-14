@@ -6,8 +6,9 @@ import java.nio.file.Files
 class NativeExtractSpec extends munit.FunSuite {
 
   private val testLogger = new NativeExtract.Logger {
-    def info(msg: String): Unit = ()
-    def warn(msg: String): Unit = ()
+    def info(msg: String): Unit  = ()
+    def warn(msg: String): Unit  = ()
+    def error(msg: String): Unit = ()
   }
 
   // Helper to create a temp directory with fake library files
@@ -324,8 +325,9 @@ class NativeExtractSpec extends munit.FunSuite {
   test("mergeFlags with no lib dir and binary set warns") {
     val warnings = scala.collection.mutable.ArrayBuffer.empty[String]
     val warnLogger = new NativeExtract.Logger {
-      def info(msg: String): Unit = ()
-      def warn(msg: String): Unit = warnings += msg
+      def info(msg: String): Unit  = ()
+      def warn(msg: String): Unit  = warnings += msg
+      def error(msg: String): Unit = ()
     }
 
     val manifest = ProviderManifest(

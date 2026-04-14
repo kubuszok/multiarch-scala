@@ -37,8 +37,9 @@ object NativeExtractSettings {
   // ── Logger adapter ────────────────────────────────────────────────
 
   private def wrapLogger(sbtLog: sbt.util.Logger): NativeExtract.Logger = new NativeExtract.Logger {
-    def info(msg: String): Unit = sbtLog.info(msg)
-    def warn(msg: String): Unit = sbtLog.warn(msg)
+    def info(msg: String): Unit  = sbtLog.info(msg)
+    def warn(msg: String): Unit  = sbtLog.warn(msg)
+    def error(msg: String): Unit = sbtLog.error(msg)
   }
 
   // ── Local directory lookup ────────────────────────────────────────

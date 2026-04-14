@@ -16,6 +16,7 @@ object NativeExtract {
   trait Logger {
     def info(msg: String): Unit
     def warn(msg: String): Unit
+    def error(msg: String): Unit
   }
 
   // ── Library file patterns ─────────────────────────────────────────
@@ -56,6 +57,7 @@ object NativeExtract {
           try {
             val json     = new String(Files.readAllBytes(f.toPath), StandardCharsets.UTF_8)
             val manifest = ProviderManifestCodec.parse(json)
+            validateManifest(manifest, f.getAbsolutePath, providerType, logger)
             logger.info(s"[native-provider] Found ${providerType.label} manifest '${manifest.providerName}' in ${f.getAbsolutePath}")
             Some(providerType -> manifest)
           } catch {
@@ -88,6 +90,7 @@ object NativeExtract {
               var read = reader.read(buf)
               while (read > 0) { sb.appendAll(buf, 0, read); read = reader.read(buf) }
               val manifest = ProviderManifestCodec.parse(sb.toString)
+              validateManifest(manifest, file.getName, providerType, logger)
               logger.info(s"[native-provider] Found ${providerType.label} manifest '${manifest.providerName}' in ${file.getName}")
               Some(providerType -> manifest)
             } finally reader.close()
@@ -98,6 +101,29 @@ object NativeExtract {
       case e: Exception =>
         logger.warn(s"[native-provider] Error reading ${file.getName}: ${e.getMessage}")
         Seq.empty
+    }
+  }
+
+  /** Validate a parsed manifest and throw on invalid/empty content. */
+  private def validateManifest(
+      manifest: ProviderManifest,
+      source: String,
+      providerType: ProviderType,
+      logger: Logger
+  ): Unit = {
+    if (manifest.configs.isEmpty) {
+      throw new RuntimeException(
+        s"[native-provider] Invalid ${providerType.label} manifest in $source: " +
+          "'configs' is empty or missing. The provider JAR was likely built with a corrupt or empty manifest file."
+      )
+    }
+    manifest.configs.foreach { config =>
+      if (config.platforms.isEmpty) {
+        throw new RuntimeException(
+          s"[native-provider] Invalid ${providerType.label} manifest in $source: " +
+            s"config '${config.configName}' has no platform entries."
+        )
+      }
     }
   }
 

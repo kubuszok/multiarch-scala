@@ -270,9 +270,9 @@ A JAR should contain at most one of these files.
 | `provider-name`            | Yes      | Human-readable name for logging and diagnostics                                              |
 | `configs`                  | Yes      | Array of configuration objects                                                               |
 | `config-name`              | Yes      | Name of this configuration (for filtering and logging)                                       |
-| `<platform-classifier>`   | --       | Platform-specific settings (key is the classifier, e.g. `"linux-x86_64"`)                    |
+| `<platform-classifier>`    | --       | Platform-specific settings (key is the classifier, e.g. `"linux-x86_64"`)                    |
 | `binary`                   | No       | Filename of the static library to extract and link (e.g. `"libcurl.a"`)                      |
-| `stub`                     | No       | When `true`, marks the archive as a stub that only satisfies the linker (default: `false`)    |
+| `stub`                     | No       | When `true`, marks the archive as a stub that only satisfies the linker (default: `false`)   |
 | `flags-groups`             | Yes      | Array of flag groups for the linker (e.g. `[["-framework", "Security"], ["-lpthread"]]`)     |
 
 #### JNI / Panama providers (`jni-provider.json` / `pnm-provider.json`)
@@ -283,7 +283,7 @@ A JAR should contain at most one of these files.
 | `provider-name`            | Yes      | Human-readable name for logging and diagnostics                                              |
 | `configs`                  | Yes      | Array of configuration objects                                                               |
 | `config-name`              | Yes      | Name of this configuration (for filtering and logging)                                       |
-| `<platform-classifier>`   | --       | Platform-specific settings (key is the classifier, e.g. `"linux-x86_64"`)                    |
+| `<platform-classifier>`    | --       | Platform-specific settings (key is the classifier, e.g. `"linux-x86_64"`)                    |
 | `binary`                   | Yes      | Filename of the shared library to extract and load (e.g. `"libmylib.so"`)                    |
 
 No `flags-groups` or `stub` — dynamically loaded libraries have no linker flags.

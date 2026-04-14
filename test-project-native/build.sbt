@@ -10,6 +10,6 @@ lazy val app = (project in file("."))
     libraryDependencies ++= Seq(
       "com.softwaremill.sttp.client4" %%% "core" % "4.0.19",
       // Single fat JAR: sn-provider.json manifest + all 6 platforms' .a files
-      "com.kubuszok" % "scala-native-provider-curl" % pluginVersion
+      "com.kubuszok" % "sn-provider-curl" % pluginVersion
     )
   )

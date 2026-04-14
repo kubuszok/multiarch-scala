@@ -6,12 +6,11 @@ import sbt.Keys._
 import scala.scalanative.sbtplugin.ScalaNativePlugin
 import scala.scalanative.sbtplugin.ScalaNativePlugin.autoImport._
 
-/** AutoPlugin that auto-discovers native provider manifests on the classpath
-  * and configures Scala Native's `nativeConfig` with the correct linker flags.
+/** AutoPlugin that auto-discovers native provider manifests on the classpath and configures Scala Native's `nativeConfig` with the correct linker flags.
   *
   * Also extracts native libraries from platform-classifier JARs when present.
   *
-  * === Usage ===
+  * ===Usage===
   * {{{
   * .enablePlugins(NativeProviderPlugin)
   * }}}
@@ -59,14 +58,12 @@ object NativeProviderPlugin extends AutoPlugin {
         val platform = NativeExtractSettings.nativeLibPlatform.value
 
         val libDirFlag = if (libDir.exists()) Seq(s"-L${libDir.getAbsolutePath}") else Seq.empty
-        val rpathFlags = if (!libDir.exists()) Seq.empty
+        val rpathFlags =
+          if (!libDir.exists()) Seq.empty
           else if (platform.isMac) Seq("-rpath", libDir.getAbsolutePath, "-rpath", "@executable_path")
           else if (platform.isLinux) Seq(s"-Wl,-rpath,${libDir.getAbsolutePath}", "-Wl,-rpath,$$ORIGIN")
           else Seq.empty
-        c.withEmbedResources(true)
-          .withResourceIncludePatterns(Seq("**.png", "**.jpg", "**.wav", "**.ogg", "**.mp3",
-            "**.txt", "**.json", "**.xml", "**.g3dj", "**.g3db", "**.atlas", "**.fnt", "**.tmx"))
-          .withLinkingOptions(c.linkingOptions ++ libDirFlag ++ merged ++ rpathFlags)
+        c.withLinkingOptions(c.linkingOptions ++ libDirFlag ++ merged ++ rpathFlags)
       }
     )
 }

@@ -791,7 +791,7 @@ object JvmPackaging {
     releaseUseZgc           := true,
     releaseMacOsBundleId    := s"com.app.${name.value}",
     releaseMacOsIcon        := None,
-    releaseCacheDir         := Path.userHome / ".cache" / "sbt-multi-arch-release",
+    releaseCacheDir         := Path.userHome / ".cache" / "sbt-multiarch-scala",
     releaseRunOnFirstThread := true,
     releaseCrossNativeLibDir := None,
     releasePlatform         := packagePlatformTask.evaluated,

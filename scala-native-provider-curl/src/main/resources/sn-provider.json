@@ -1,0 +1,47 @@
+{
+  "provider-schema-version": "0.1.0",
+  "provider-name": "curl",
+  "configs": [
+    {
+      "config-name": "curl",
+      "linux-x86_64": {
+        "binary": "libcurl.a",
+        "flags-groups": [["-lpthread"], ["-ldl"], ["-lz"]]
+      },
+      "linux-aarch64": {
+        "binary": "libcurl.a",
+        "flags-groups": [["-lpthread"], ["-ldl"], ["-lz"]]
+      },
+      "macos-x86_64": {
+        "binary": "libcurl.a",
+        "flags-groups": [["-framework", "Security"], ["-framework", "SystemConfiguration"], ["-framework", "CoreFoundation"], ["-lz"]]
+      },
+      "macos-aarch64": {
+        "binary": "libcurl.a",
+        "flags-groups": [["-framework", "Security"], ["-framework", "SystemConfiguration"], ["-framework", "CoreFoundation"], ["-lz"]]
+      },
+      "windows-x86_64": {
+        "binary": "libcurl.lib",
+        "flags-groups": [["-lws2_32"], ["-lcrypt32"], ["-lbcrypt"], ["-ladvapi32"], ["-lncrypt"], ["-lntdll"], ["-lmsvcrt"]]
+      },
+      "windows-aarch64": {
+        "binary": "libcurl.lib",
+        "flags-groups": [["-lws2_32"], ["-lcrypt32"], ["-lbcrypt"], ["-ladvapi32"], ["-lncrypt"], ["-lntdll"], ["-lmsvcrt"]]
+      }
+    },
+    {
+      "config-name": "curl_static",
+      "windows-x86_64": { "binary": "libcurl_static.lib", "flags-groups": [] },
+      "windows-aarch64": { "binary": "libcurl_static.lib", "flags-groups": [] }
+    },
+    {
+      "config-name": "idn2",
+      "linux-x86_64": { "binary": "libidn2.a", "stub": true, "flags-groups": [] },
+      "linux-aarch64": { "binary": "libidn2.a", "stub": true, "flags-groups": [] },
+      "macos-x86_64": { "binary": "libidn2.a", "stub": true, "flags-groups": [] },
+      "macos-aarch64": { "binary": "libidn2.a", "stub": true, "flags-groups": [] },
+      "windows-x86_64": { "binary": "idn2.lib", "stub": true, "flags-groups": [] },
+      "windows-aarch64": { "binary": "idn2.lib", "stub": true, "flags-groups": [] }
+    }
+  ]
+}

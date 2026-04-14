@@ -26,7 +26,7 @@ import scala.scalanative.sbtplugin.ScalaNativePlugin.autoImport._
 object ZigCrossPlugin extends AutoPlugin {
 
   override def trigger  = noTrigger
-  override def requires = NativeLibBundlePlugin
+  override def requires = NativeProviderPlugin
 
   object autoImport {
     val zigCrossTarget = settingKey[Option[Platform]](
@@ -39,10 +39,10 @@ object ZigCrossPlugin extends AutoPlugin {
   override def projectSettings: Seq[Setting[_]] = Seq(
     zigCrossTarget := None,
     // When zigCrossTarget is set, configure zig wrappers and sync the bundle/extract platform
-    NativeLibExtract.nativeLibPlatform := {
+    NativeExtractSettings.nativeLibPlatform := {
       zigCrossTarget.value.getOrElse(Platform.host)
     },
-    NativeLibBundle.nativeBundlePlatform := {
+    NativeProviderSettings.nativeProviderPlatform := {
       zigCrossTarget.value.getOrElse(Platform.host)
     },
     nativeConfig := {

@@ -10,6 +10,7 @@ project/project/
 .idea/
 .vscode/
 *.iml
+.claude/settings.local.json
 
 # OS
 .DS_Store

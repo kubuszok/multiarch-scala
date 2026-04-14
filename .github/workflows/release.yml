@@ -4,6 +4,8 @@ on:
   push:
     branches: [master]
     tags: ["*"]
+  pull_request:
+    branches: [master]
 
 jobs:
   release-tag:
@@ -27,8 +29,8 @@ jobs:
           apps: sbt
       - name: Download static curl libraries
         run: |
-          chmod +x scala-native-curl-provider/scripts/download-curl.sh
-          scala-native-curl-provider/scripts/download-curl.sh
+          chmod +x scala-native-provider-curl/scripts/download-curl.sh
+          scala-native-provider-curl/scripts/download-curl.sh
       - name: Publish all projects
         run: sbt ci-release
         env:

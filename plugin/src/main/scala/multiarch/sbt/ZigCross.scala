@@ -74,8 +74,8 @@ object ZigCross {
     * @param platform target platform to cross-compile for
     */
   def crossSettings(platform: Platform): Seq[Setting[_]] = Seq(
-    NativeLibExtract.nativeLibPlatform    := platform,
-    NativeLibBundle.nativeBundlePlatform  := platform,
+    NativeExtractSettings.nativeLibPlatform       := platform,
+    NativeProviderSettings.nativeProviderPlatform  := platform,
     nativeConfig := {
       val c          = nativeConfig.value
       val wrapperDir = target.value / "zig-wrappers"

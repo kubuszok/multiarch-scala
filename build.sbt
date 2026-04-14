@@ -1,4 +1,4 @@
-import multiarch.sbt.Platform
+import multiarch.core.Platform
 
 lazy val isCI = sys.env.get("CI").contains("true")
 ThisBuild / packageDoc / publishArtifact := false
@@ -14,21 +14,19 @@ git.uncommittedSignifier := Some("SNAPSHOT")
 //   https://github.com/sbt/sbt-git/issues/164
 // (now this suffix is empty by default) so we need to fix it manually.
 git.gitUncommittedChanges := git.gitCurrentTags.value.isEmpty
-// I don't want any 0.1.0 crap, every commit that is not tag, gets last-tag-SHA-SNAPSHOT version like god intended.
-//git.formattedShaVersion  := git.gitHeadCommit.value.map(_ => s"${git.baseVersion.value}-SNAPSHOT")
 
 // Used to publish snapshots to Maven Central.
 val mavenCentralSnapshots = "Maven Central Snapshots" at "https://central.sonatype.com/repository/maven-snapshots"
 
 val publishSettings = Seq(
   organization := "com.kubuszok",
-  homepage := Some(url("https://github.com/kubuszok/sbt-multi-arch-release")),
+  homepage := Some(url("https://github.com/kubuszok/multiarch-scala")),
   organizationHomepage := Some(url("https://kubuszok.com")),
   licenses := Seq("Apache-2.0" -> url("https://www.apache.org/licenses/LICENSE-2.0")),
   scmInfo := Some(
     ScmInfo(
-      url("https://github.com/kubuszok/sbt-multi-arch-release/"),
-      "scm:git:git@github.com:kubuszok/sbt-multi-arch-release.git"
+      url("https://github.com/kubuszok/multiarch-scala/"),
+      "scm:git:git@github.com:kubuszok/multiarch-scala.git"
     )
   ),
   startYear := Some(2026),
@@ -38,7 +36,7 @@ val publishSettings = Seq(
   pomExtra := (
     <issueManagement>
       <system>GitHub issues</system>
-      <url>https://github.com/kubuszok/sbt-multi-arch-release/issues</url>
+      <url>https://github.com/kubuszok/multiarch-scala/issues</url>
     </issueManagement>
   ),
   publishTo := {
@@ -63,9 +61,9 @@ lazy val root = project
   .enablePlugins(GitVersioning, GitBranchPrompt)
   .settings(publishSettings *)
   .settings(noPublishSettings *)
-  .aggregate(plugin, scalaNativeCurlProvider)
+  .aggregate(core, plugin, scalaNativeProviderCurl)
   .settings(
-    name := "sbt-multi-arch-release-root",
+    name := "sbt-multiarch-scala-root",
     // ci-release: snapshot on untagged push, release on tags
     commands += Command.command("ci-release") { state =>
       val extracted = Project.extract(state)
@@ -75,14 +73,27 @@ lazy val root = project
     }
   )
 
+// ── Core module (sbt-independent) ─────────────────────────────────────
+
+lazy val core = project
+  .in(file("core"))
+  .settings(publishSettings *)
+  .settings(
+    name := "multiarch-core",
+    crossScalaVersions := Seq("2.12.21", "2.13.18", "3.3.7"),
+    scalaVersion := "2.12.21",
+    libraryDependencies += "org.scalameta" %% "munit" % "1.1.0" % Test
+  )
+
 // ── Plugin module ─────────────────────────────────────────────────────
 
 lazy val plugin = project
   .in(file("plugin"))
   .enablePlugins(SbtPlugin)
+  .dependsOn(core)
   .settings(publishSettings *)
   .settings(
-    name := "sbt-multi-arch-release",
+    name := "sbt-multiarch-scala",
     // Scala Native plugin API available at compile time; consumers must provide it themselves
     addSbtPlugin("org.scala-native" % "sbt-scala-native" % "0.5.10" % Provided),
     addSbtPlugin("com.eed3si9n"     % "sbt-projectmatrix" % "0.11.0" % Provided)
@@ -90,18 +101,18 @@ lazy val plugin = project
 
 // ── Curl native library provider ──────────────────────────────────────
 
-lazy val scalaNativeCurlProvider = project
-  .in(file("scala-native-curl-provider"))
+lazy val scalaNativeProviderCurl = project
+  .in(file("scala-native-provider-curl"))
   .settings(publishSettings *)
   .settings(
-    name               := "scala-native-curl-provider",
+    name               := "scala-native-provider-curl",
     autoScalaLibrary   := false,
     crossPaths         := false,
     Compile / packageDoc / publishArtifact := false,
     Compile / packageSrc / publishArtifact := false,
     // Bundle all 6 platforms' native libraries into the single JAR.
     // Layout: native/<platform-classifier>/lib<name>.a
-    // The NativeLibExtract plugin extracts only the current platform's files.
+    // The NativeExtract logic extracts only the current platform's files.
     Compile / packageBin / mappings ++= {
       val nativesDir = baseDirectory.value / "natives"
       if (nativesDir.exists()) {

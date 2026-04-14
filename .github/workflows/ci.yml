@@ -11,8 +11,8 @@ env:
   JAVA_DISTRIBUTION: "zulu"
 
 jobs:
-  # ── Cross-compile plugin for sbt 1.x (and later 2.x) ────────────
-  compile-plugin:
+  # ── Compile core + plugin ───────────────────────────────────────────
+  compile:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -24,10 +24,26 @@ jobs:
           distribution: ${{ env.JAVA_DISTRIBUTION }}
           cache: sbt
       - uses: sbt/setup-sbt@v1
-      - name: Compile plugin
-        run: sbt +plugin/compile
+      - name: Compile core and plugin
+        run: sbt +core/compile +plugin/compile
 
-  # ── Build scala-native-curl-provider artifact ────────────────────
+  # ── Unit tests ──────────────────────────────────────────────────────
+  unit-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-java@v4
+        with:
+          java-version: ${{ env.JAVA_VERSION }}
+          distribution: ${{ env.JAVA_DISTRIBUTION }}
+          cache: sbt
+      - uses: sbt/setup-sbt@v1
+      - name: Run core tests
+        run: sbt +core/test
+
+  # ── Build scala-native-provider-curl artifact ───────────────────────
   build-curl-provider:
     runs-on: ubuntu-latest
     steps:
@@ -42,20 +58,20 @@ jobs:
       - uses: sbt/setup-sbt@v1
       - name: Download static curl libraries
         run: |
-          chmod +x scala-native-curl-provider/scripts/download-curl.sh
-          scala-native-curl-provider/scripts/download-curl.sh
+          chmod +x scala-native-provider-curl/scripts/download-curl.sh
+          scala-native-provider-curl/scripts/download-curl.sh
       - name: Build and publish locally
-        run: sbt scalaNativeCurlProvider/publishLocal
+        run: sbt scalaNativeProviderCurl/publishLocal
       - name: Upload curl provider artifacts
         uses: actions/upload-artifact@v4
         with:
           name: curl-provider-ivy
-          path: ~/.ivy2/local/com.kubuszok/scala-native-curl-provider/
+          path: ~/.ivy2/local/com.kubuszok/scala-native-provider-curl/
           retention-days: 1
 
-  # ── Test Scala Native linking ────────────────────────────────────
-  integration-native:
-    needs: [compile-plugin, build-curl-provider]
+  # ── Build Scala Native binaries for all 6 platforms ─────────────────
+  integration-native-build:
+    needs: [compile, build-curl-provider]
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
@@ -74,26 +90,49 @@ jobs:
       - name: Determine version
         id: version
         run: echo "version=$(sbt --no-colors 'print plugin/version' | tail -1 | tr -d '[:space:]')" >> $GITHUB_OUTPUT
-      - name: Publish plugin locally
-        run: sbt +plugin/publishLocal
+      - name: Publish plugin and core locally
+        run: sbt +core/publishLocal +plugin/publishLocal
       - name: Download curl provider artifacts
         uses: actions/download-artifact@v4
         with:
           name: curl-provider-ivy
-          path: ~/.ivy2/local/com.kubuszok/scala-native-curl-provider/
+          path: ~/.ivy2/local/com.kubuszok/scala-native-provider-curl/
       - name: Download static curl libraries
         run: |
-          chmod +x scala-native-curl-provider/scripts/download-curl.sh
-          scala-native-curl-provider/scripts/download-curl.sh
+          chmod +x scala-native-provider-curl/scripts/download-curl.sh
+          scala-native-provider-curl/scripts/download-curl.sh
       - name: Publish curl provider locally
-        run: sbt scalaNativeCurlProvider/publishLocal
+        run: sbt scalaNativeProviderCurl/publishLocal
       - name: Test Native linking (host platform)
-        working-directory: test-project
-        run: sbt -Dplugin.version=${{ steps.version.outputs.version }} testNative/nativeLink
+        working-directory: test-project-native
+        run: sbt -Dplugin.version=${{ steps.version.outputs.version }} nativeLink
+      # TODO: cross-compile for all 6 platforms with zig and upload artifacts
 
-  # ── Test JLink JVM bundling ──────────────────────────────────────
-  integration-jlink:
-    needs: [compile-plugin]
+  # ── Run Scala Native binaries on real platforms ─────────────────────
+  # integration-native-run:
+  #   needs: [integration-native-build]
+  #   strategy:
+  #     fail-fast: false
+  #     matrix:
+  #       include:
+  #         - os: ubuntu-latest
+  #           platform: linux-x86_64
+  #         - os: ubuntu-24.04-arm
+  #           platform: linux-aarch64
+  #         - os: macos-latest
+  #           platform: macos-aarch64
+  #         - os: macos-13
+  #           platform: macos-x86_64
+  #         - os: windows-latest
+  #           platform: windows-x86_64
+  #         # windows-aarch64: no runner available
+  #   runs-on: ${{ matrix.os }}
+  #   steps:
+  #     - download artifact, run, verify
+
+  # ── Build JLink packages for all 6 platforms ────────────────────────
+  integration-jlink-build:
+    needs: [compile]
     strategy:
       fail-fast: false
       matrix:
@@ -119,15 +158,15 @@ jobs:
         id: version
         shell: bash
         run: echo "version=$(sbt --no-colors 'print plugin/version' | tail -1 | tr -d '[:space:]')" >> $GITHUB_OUTPUT
-      - name: Publish plugin locally
+      - name: Publish plugin and core locally
         shell: bash
-        run: sbt +plugin/publishLocal
+        run: sbt +core/publishLocal +plugin/publishLocal
       - name: Test JLink packaging
         shell: bash
-        working-directory: test-project
-        run: sbt -Dplugin.version=${{ steps.version.outputs.version }} "testJVM/releasePlatform ${{ matrix.platform }}"
+        working-directory: test-project-jlink
+        run: sbt -Dplugin.version=${{ steps.version.outputs.version }} "releasePlatform ${{ matrix.platform }}"
       - name: Verify archive exists
         shell: bash
         run: |
-          ls -la test-project/jvm/target/release-dist/
+          ls -la test-project-jlink/target/release-dist/
           echo "JLink packaging verification passed"

@@ -68,8 +68,13 @@ lazy val root = project
     commands += Command.command("ci-release") { state =>
       val extracted = Project.extract(state)
       val tags      = extracted.get(git.gitCurrentTags)
-      if (tags.nonEmpty) "publishSigned" :: "sonaRelease" :: state
-      else "publishSigned" :: state
+      // +core/publishSigned cross-publishes core for all Scala versions (2.12, 2.13, 3.3)
+      // plugin/publishSigned publishes the sbt plugin (Scala 2.12 only)
+      // snProviderCurl/publishSigned publishes the curl provider (no Scala version)
+      if (tags.nonEmpty)
+        "+core/publishSigned" :: "plugin/publishSigned" :: "snProviderCurl/publishSigned" :: "sonaRelease" :: state
+      else
+        "+core/publishSigned" :: "plugin/publishSigned" :: "snProviderCurl/publishSigned" :: state
     }
   )
 

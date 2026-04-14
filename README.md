@@ -6,11 +6,11 @@ Multi-architecture native library distribution and JVM application packaging for
 
 Three SBT AutoPlugins and a core library:
 
-| Artifact                     | Purpose                                                                                                                           |
-|------------------------------|-----------------------------------------------------------------------------------------------------------------------------------|
-| `sbt-multiarch-scala`        | SBT plugin bundle containing `NativeProviderPlugin`, `ZigCrossPlugin`, and `MultiArchJvmReleasePlugin`                            |
-| `multiarch-core`             | Shared models, JSON codec, extraction logic, and runtime `NativeLibLoader` — sbt-independent, usable by any build tool or runtime |
-| `scala-native-provider-curl` | Pre-built static curl libraries for 6 desktop platforms with `sn-provider.json` manifest                                          |
+| Artifact               | Purpose                                                                                                    |
+|------------------------|------------------------------------------------------------------------------------------------------------|
+| `sbt-multiarch-scala`  | SBT plugin bundle: `NativeProviderPlugin`, `MultiArchNativeReleasePlugin`, `MultiArchJvmReleasePlugin`     |
+| `multiarch-core`       | Shared models, JSON codec, extraction logic, and runtime `NativeLibLoader` — sbt-independent               |
+| `sn-provider-curl`     | Pre-built static curl libraries for 6 desktop platforms with `sn-provider.json` manifest                   |
 
 What do they do? Let's take a look at some examples.
 
@@ -39,11 +39,11 @@ lazy val myApp = (project in file("my-app"))
     libraryDependencies ++= Seq(
       // STTP on Scala Native requires libcurl, normally you would
       // have to have it installed on your system, or SN would not
-      // be able to link the complite binary...
+      // be able to link the complete binary...
       "com.softwaremill.sttp.client4" %%% "core" % "4.0.19",
       // ...but here we just need to add a dependency and NativeProviderPlugin
       // will extract the necessary native artifact and set up SN flags!
-      "com.kubuszok" % "scala-native-provider-curl" % "<version>"
+      "com.kubuszok" % "sn-provider-curl" % "<version>"
     )
   )
 ```
@@ -118,15 +118,19 @@ Build your native library for each target platform. For Scala Native, you need s
 
 Choose the right manifest filename for your provider type:
 
-| Filename            | Provider Type | Use Case                                          |
-|---------------------|---------------|---------------------------------------------------|
-| `jni-provider.json` | JNI           | Shared libraries loaded at runtime via JNI        |
-| `pnm-provider.json` | Panama        | Shared libraries loaded at runtime via Panama FFI |
-| `sn-provider.json`  | Scala Native  | Static libraries linked at compile time           |
+| Filename              | Provider Type | Use Case                                          |
+|-----------------------|---------------|---------------------------------------------------|
+| `sn-provider.json`    | Scala Native  | Static libraries linked at compile time           |
+| `jni-provider.json`   | JNI           | Shared libraries loaded at runtime via JNI        |
+| `pnm-provider.json`   | Panama        | Shared libraries loaded at runtime via Panama FFI |
 
-(There is no different between `jni-provider.json` and `pnm-provider.json`, but different naming help to prevent accidentally using a wrong artifact if there are multiple versions).
+(There is no difference between `jni-provider.json` and `pnm-provider.json`, but different naming helps prevent accidentally using a wrong artifact if there are multiple versions).
 
-Create the manifest in `src/main/resources/`:
+Create the manifest in `src/main/resources/`.
+
+#### Scala Native provider example (`sn-provider.json`)
+
+For static libraries linked at compile time. The `flags-groups` field is **required** — it tells the Scala Native linker which system libraries and frameworks to link:
 
 ```json
 {
@@ -164,16 +168,41 @@ Create the manifest in `src/main/resources/`:
 }
 ```
 
+#### JNI / Panama provider example (`jni-provider.json` / `pnm-provider.json`)
+
+For shared libraries loaded at runtime. No `flags-groups` — dynamic loading has no linker flags:
+
+```json
+{
+  "provider-schema-version": "0.1.0",
+  "provider-name": "mylib",
+  "configs": [
+    {
+      "config-name": "mylib",
+      "linux-x86_64":    { "binary": "libmylib.so" },
+      "linux-aarch64":   { "binary": "libmylib.so" },
+      "macos-x86_64":    { "binary": "libmylib.dylib" },
+      "macos-aarch64":   { "binary": "libmylib.dylib" },
+      "windows-x86_64":  { "binary": "mylib.dll" },
+      "windows-aarch64": { "binary": "mylib.dll" },
+      "android-aarch64": { "binary": "libmylib.so" },
+      "android-armv7":   { "binary": "libmylib.so" },
+      "android-x86_64":  { "binary": "libmylib.so" }
+    }
+  ]
+}
+```
+
 ### Step 3: Package native files into a JAR
 
 Bundle your native files following the platform-classifier directory convention:
 
 ```
 my-provider.jar
-├── sn-provider.json
+├── sn-provider.json          (or jni-provider.json / pnm-provider.json)
 └── native/
     ├── linux-x86_64/
-    │   └── libmylib.a
+    │   └── libmylib.a        (or .so / .dylib / .dll)
     ├── linux-aarch64/
     │   └── libmylib.a
     ├── macos-x86_64/
@@ -212,9 +241,9 @@ Publish your provider JAR. Consumers simply add it as a dependency — the plugi
 
 I suggest the following naming convention:
 
- - `jni-provider-library-name` - artifacts providing native libraries dynamically loaded via JNI
- - `pnm-provider-library-name` - artifacts providing native libraries dynamically loaded via Panama API
- - `sn-provider-library-name` - artifacts providing native libraries statically linked with Scala Native
+- `sn-provider-library-name` — artifacts providing native libraries statically linked with Scala Native
+- `jni-provider-library-name` — artifacts providing native libraries dynamically loaded via JNI
+- `pnm-provider-library-name` — artifacts providing native libraries dynamically loaded via Panama API
 
 It isn't required by the infrastructure to work, but when sorting dependencies by the name,
 all the native libraries will be grouped together naturally.
@@ -223,49 +252,64 @@ all the native libraries will be grouped together naturally.
 
 ### Provider types
 
-| Type | Filename | Libraries | Loading |
-|------|----------|-----------|---------|
-| JNI | `jni-provider.json` | Shared (`.so`, `.dylib`, `.dll`) | Loaded at runtime by `NativeLibLoader` |
-| Panama | `pnm-provider.json` | Shared (`.so`, `.dylib`, `.dll`) | Loaded at runtime by `NativeLibLoader` |
-| Scala Native | `sn-provider.json` | Static (`.a`, `.lib`) | Linked at compile time by sbt plugin |
+| Type         | Filename              | Libraries                        | Loading                                 |
+|--------------|-----------------------|----------------------------------|-----------------------------------------|
+| Scala Native | `sn-provider.json`    | Static (`.a`, `.lib`)            | Linked at compile time by sbt plugin    |
+| JNI          | `jni-provider.json`   | Shared (`.so`, `.dylib`, `.dll`) | Loaded at runtime by `NativeLibLoader`  |
+| Panama       | `pnm-provider.json`   | Shared (`.so`, `.dylib`, `.dll`) | Loaded at runtime by `NativeLibLoader`  |
 
 A JAR should contain at most one of these files.
 
 ### Fields
 
-| Field | Required | Description |
-|-------|----------|-------------|
-| `provider-schema-version` | Yes | Schema version string (currently `"0.1.0"`) |
-| `provider-name` | Yes | Human-readable name for logging and diagnostics |
-| `configs` | Yes | Array of configuration objects |
-| `config-name` | Yes | Name of this configuration (for filtering and logging) |
-| `<platform-classifier>` | — | Platform-specific settings object (key is the classifier, e.g. `"linux-x86_64"`) |
-| `binary` | No | Filename of the library to extract and link. When absent, the config contributes only `flags-groups` — no library is linked. |
-| `stub` | No | When `true`, marks the archive as a stub that exists only to satisfy the linker (default: `false`) |
-| `flags-groups` | Yes | Array of flag groups. Each group is an array of strings (e.g. `["-framework", "Security"]`). Groups are deduplicated across providers. |
+#### Scala Native providers (`sn-provider.json`)
+
+| Field                      | Required | Description                                                                                  |
+|----------------------------|----------|----------------------------------------------------------------------------------------------|
+| `provider-schema-version`  | Yes      | Schema version string (currently `"0.1.0"`)                                                  |
+| `provider-name`            | Yes      | Human-readable name for logging and diagnostics                                              |
+| `configs`                  | Yes      | Array of configuration objects                                                               |
+| `config-name`              | Yes      | Name of this configuration (for filtering and logging)                                       |
+| `<platform-classifier>`   | --       | Platform-specific settings (key is the classifier, e.g. `"linux-x86_64"`)                    |
+| `binary`                   | No       | Filename of the static library to extract and link (e.g. `"libcurl.a"`)                      |
+| `stub`                     | No       | When `true`, marks the archive as a stub that only satisfies the linker (default: `false`)    |
+| `flags-groups`             | Yes      | Array of flag groups for the linker (e.g. `[["-framework", "Security"], ["-lpthread"]]`)     |
+
+#### JNI / Panama providers (`jni-provider.json` / `pnm-provider.json`)
+
+| Field                      | Required | Description                                                                                  |
+|----------------------------|----------|----------------------------------------------------------------------------------------------|
+| `provider-schema-version`  | Yes      | Schema version string (currently `"0.1.0"`)                                                  |
+| `provider-name`            | Yes      | Human-readable name for logging and diagnostics                                              |
+| `configs`                  | Yes      | Array of configuration objects                                                               |
+| `config-name`              | Yes      | Name of this configuration (for filtering and logging)                                       |
+| `<platform-classifier>`   | --       | Platform-specific settings (key is the classifier, e.g. `"linux-x86_64"`)                    |
+| `binary`                   | Yes      | Filename of the shared library to extract and load (e.g. `"libmylib.so"`)                    |
+
+No `flags-groups` or `stub` — dynamically loaded libraries have no linker flags.
 
 ### `binary` field semantics
 
-- **Present** (e.g. `"binary": "libcurl.a"`): The named file is extracted from the JAR and its full path is passed to the linker, along with `flags-groups`.
-- **Absent**: No library is extracted or linked. Only `flags-groups` from this config contribute to the linker command. Use this for configs that only provide system library flags.
+- **Present** (e.g. `"binary": "libcurl.a"`): The named file is extracted from the JAR and its full path is passed to the linker (SN) or loaded at runtime (JNI/Panama), along with `flags-groups` if applicable.
+- **Absent** (SN only): No library is extracted or linked. Only `flags-groups` from this config contribute to the linker command. Use this for configs that only provide system library flags.
 
-### `flags-groups` deduplication
+### `flags-groups` deduplication (SN only)
 
 Flag groups from all providers are collected and deduplicated by exact group equality. This means `["-framework", "Security"]` from two different providers appears only once in the final linker command. Individual flags within a group are kept together.
 
 ## Supported platforms
 
-| Classifier        | Scala Native Target | Zig Target | SN | JNI/Panama | JVM Packaging |
-|-------------------|---------------------|------------|----|------------|---------------|
-| `linux-x86_64`    | `x86_64-unknown-linux-gnu` | `x86_64-linux-gnu` | Y | Y | Y |
-| `linux-aarch64`   | `aarch64-unknown-linux-gnu` | `aarch64-linux-gnu` | Y | Y | Y |
-| `macos-x86_64`    | `x86_64-apple-darwin` | `x86_64-macos` | Y | Y | Y |
-| `macos-aarch64`   | `aarch64-apple-darwin` | `aarch64-macos` | Y | Y | Y |
-| `windows-x86_64`  | `x86_64-pc-windows-msvc` | `x86_64-windows-gnu` | Y | Y | Y |
-| `windows-aarch64` | `aarch64-pc-windows-msvc` | `aarch64-windows-gnu` | Y | Y | Y |
-| `android-aarch64` | `aarch64-linux-android` | — | — | Y | — |
-| `android-armv7`   | `armv7-linux-androideabi` | — | — | Y | — |
-| `android-x86_64`  | `x86_64-linux-android` | — | — | Y | — |
+| Classifier         | Scala Native Target              | Zig Target            | SN  | JNI/Panama | JVM Packaging |
+|--------------------|----------------------------------|-----------------------|-----|------------|---------------|
+| `linux-x86_64`     | `x86_64-unknown-linux-gnu`       | `x86_64-linux-gnu`    | Yes | Yes        | Yes           |
+| `linux-aarch64`    | `aarch64-unknown-linux-gnu`      | `aarch64-linux-gnu`   | Yes | Yes        | Yes           |
+| `macos-x86_64`     | `x86_64-apple-darwin`            | `x86_64-macos`        | Yes | Yes        | Yes           |
+| `macos-aarch64`    | `aarch64-apple-darwin`           | `aarch64-macos`       | Yes | Yes        | Yes           |
+| `windows-x86_64`   | `x86_64-pc-windows-msvc`         | `x86_64-windows-gnu`  | Yes | Yes        | Yes           |
+| `windows-aarch64`  | `aarch64-pc-windows-msvc`        | `aarch64-windows-gnu` | Yes | Yes        | Yes           |
+| `android-aarch64`  | `aarch64-linux-android`          | --                    | --  | Yes        | --            |
+| `android-armv7`    | `armv7-linux-androideabi`        | --                    | --  | Yes        | --            |
+| `android-x86_64`   | `x86_64-linux-android`           | --                    | --  | Yes        | --            |
 
 ## Cross-compilation with Zig
 
@@ -273,7 +317,7 @@ Cross-compile Scala Native to non-host platforms using zig:
 
 ```scala
 lazy val myAppLinux = (project in file("my-app-linux"))
-  .enablePlugins(NativeProviderPlugin, ZigCrossPlugin)
+  .enablePlugins(NativeProviderPlugin, MultiArchNativeReleasePlugin)
   .settings(
     zigCrossTarget := Some(Platform.LinuxX86_64)
   )

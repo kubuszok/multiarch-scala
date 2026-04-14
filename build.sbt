@@ -61,7 +61,7 @@ lazy val root = project
   .enablePlugins(GitVersioning, GitBranchPrompt)
   .settings(publishSettings *)
   .settings(noPublishSettings *)
-  .aggregate(core, plugin, scalaNativeProviderCurl)
+  .aggregate(core, plugin, snProviderCurl)
   .settings(
     name := "sbt-multiarch-scala-root",
     // ci-release: snapshot on untagged push, release on tags
@@ -101,11 +101,11 @@ lazy val plugin = project
 
 // ── Curl native library provider ──────────────────────────────────────
 
-lazy val scalaNativeProviderCurl = project
-  .in(file("scala-native-provider-curl"))
+lazy val snProviderCurl = project
+  .in(file("sn-provider-curl"))
   .settings(publishSettings *)
   .settings(
-    name               := "scala-native-provider-curl",
+    name               := "sn-provider-curl",
     autoScalaLibrary   := false,
     crossPaths         := false,
     Compile / packageDoc / publishArtifact := false,

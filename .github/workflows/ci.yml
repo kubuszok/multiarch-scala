@@ -43,7 +43,7 @@ jobs:
       - name: Run core tests
         run: sbt +core/test
 
-  # ── Build scala-native-provider-curl artifact ───────────────────────
+  # ── Build sn-provider-curl artifact ───────────────────────
   build-curl-provider:
     runs-on: ubuntu-latest
     steps:
@@ -58,15 +58,15 @@ jobs:
       - uses: sbt/setup-sbt@v1
       - name: Download static curl libraries
         run: |
-          chmod +x scala-native-provider-curl/scripts/download-curl.sh
-          scala-native-provider-curl/scripts/download-curl.sh
+          chmod +x sn-provider-curl/scripts/download-curl.sh
+          sn-provider-curl/scripts/download-curl.sh
       - name: Build and publish locally
-        run: sbt scalaNativeProviderCurl/publishLocal
+        run: sbt snProviderCurl/publishLocal
       - name: Upload curl provider artifacts
         uses: actions/upload-artifact@v4
         with:
           name: curl-provider-ivy
-          path: ~/.ivy2/local/com.kubuszok/scala-native-provider-curl/
+          path: ~/.ivy2/local/com.kubuszok/sn-provider-curl/
           retention-days: 1
 
   # ── Build Scala Native binaries for all 6 platforms ─────────────────
@@ -96,13 +96,13 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: curl-provider-ivy
-          path: ~/.ivy2/local/com.kubuszok/scala-native-provider-curl/
+          path: ~/.ivy2/local/com.kubuszok/sn-provider-curl/
       - name: Download static curl libraries
         run: |
-          chmod +x scala-native-provider-curl/scripts/download-curl.sh
-          scala-native-provider-curl/scripts/download-curl.sh
+          chmod +x sn-provider-curl/scripts/download-curl.sh
+          sn-provider-curl/scripts/download-curl.sh
       - name: Publish curl provider locally
-        run: sbt scalaNativeProviderCurl/publishLocal
+        run: sbt snProviderCurl/publishLocal
       - name: Test Native linking (host platform)
         working-directory: test-project-native
         run: sbt -Dplugin.version=${{ steps.version.outputs.version }} nativeLink

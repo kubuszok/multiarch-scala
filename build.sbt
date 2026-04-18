@@ -1,7 +1,8 @@
 import multiarch.core.Platform
 
 lazy val isCI = sys.env.get("CI").contains("true")
-ThisBuild / packageDoc / publishArtifact := false
+// Maven Central requires a Javadoc JAR; publish an empty one for all modules.
+ThisBuild / Compile / doc / sources := Seq.empty
 
 // Version from git tags: tagged commits get clean versions (e.g. "0.1.0"),
 // untagged commits get SNAPSHOT versions (e.g. "0.1.0-SNAPSHOT").
@@ -113,7 +114,6 @@ lazy val snProviderCurl = project
     name               := "sn-provider-curl",
     autoScalaLibrary   := false,
     crossPaths         := false,
-    Compile / packageDoc / publishArtifact := false,
     Compile / packageSrc / publishArtifact := false,
     // Bundle all 6 platforms' native libraries into the single JAR.
     // Layout: native/<platform-classifier>/lib<name>.a

@@ -7,14 +7,14 @@ ThisBuild / Compile / doc / sources := Seq.empty
 // Version from git tags: tagged commits get clean versions (e.g. "0.1.0"),
 // untagged commits get SNAPSHOT versions (e.g. "0.1.0-SNAPSHOT").
 // When a vX.Y.Z tag exists, git describe produces that version directly.
-git.useGitDescribe       := true
-git.uncommittedSignifier := Some("SNAPSHOT")
+ThisBuild / git.useGitDescribe       := true
+ThisBuild / git.uncommittedSignifier := Some("SNAPSHOT")
 // Sonatype ignores isSnapshot setting and only looks at -SNAPSHOT suffix in version:
 //   https://central.sonatype.org/publish/publish-maven/#performing-a-snapshot-deployment
 // meanwhile sbt-git used to set up SNAPSHOT if there were uncommitted changes:
 //   https://github.com/sbt/sbt-git/issues/164
 // (now this suffix is empty by default) so we need to fix it manually.
-git.gitUncommittedChanges := git.gitCurrentTags.value.isEmpty
+ThisBuild / git.gitUncommittedChanges := git.gitCurrentTags.value.isEmpty
 
 // Used to publish snapshots to Maven Central.
 val mavenCentralSnapshots = "Maven Central Snapshots" at "https://central.sonatype.com/repository/maven-snapshots"

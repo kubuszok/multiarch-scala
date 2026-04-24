@@ -3,6 +3,8 @@ package multiarch.sbt
 import sbt._
 import sbt.Keys._
 
+import java.nio.file.Files
+
 import scala.scalanative.sbtplugin.ScalaNativePlugin
 import scala.scalanative.sbtplugin.ScalaNativePlugin.autoImport._
 
@@ -64,6 +66,29 @@ object NativeProviderPlugin extends AutoPlugin {
           else if (platform.isLinux) Seq(s"-Wl,-rpath,${libDir.getAbsolutePath}", "-Wl,-rpath,$$ORIGIN")
           else Seq.empty
         c.withLinkingOptions(c.linkingOptions ++ libDirFlag ++ merged ++ rpathFlags)
+      },
+      // Windows: copy DLLs next to the linked executable (no rpath on Windows).
+      // The PE loader searches the executable's directory first, so placing DLLs
+      // there is the equivalent of -rpath @executable_path on macOS.
+      Compile / nativeLink := {
+        val linked   = (Compile / nativeLink).value
+        val platform = NativeExtractSettings.nativeLibPlatform.value
+        if (platform.isWindows) {
+          val libDir = NativeExtractSettings.nativeLibExtract.value
+          val exeDir = linked.toPath.getParent
+          val log    = streams.value.log
+          if (libDir.exists()) {
+            val dlls = libDir.listFiles().filter(_.getName.endsWith(".dll"))
+            dlls.foreach { dll =>
+              val dest = exeDir.resolve(dll.getName)
+              if (!Files.exists(dest)) {
+                Files.copy(dll.toPath, dest)
+                log.info(s"[native-provider] Copied ${dll.getName} next to executable")
+              }
+            }
+          }
+        }
+        linked
       }
     )
 }

@@ -62,7 +62,7 @@ lazy val root = project
   .enablePlugins(GitVersioning, GitBranchPrompt)
   .settings(publishSettings *)
   .settings(noPublishSettings *)
-  .aggregate(core, plugin, snProviderCurl)
+  .aggregate(core, plugin, snProviderCurl, `panama-api`, `panama-jdk`)
   .settings(
     name := "sbt-multiarch-scala-root",
     // ci-release: snapshot on untagged push, release on tags
@@ -73,9 +73,11 @@ lazy val root = project
       // plugin/publishSigned publishes the sbt plugin (Scala 2.12 only)
       // snProviderCurl/publishSigned publishes the curl provider (no Scala version)
       if (tags.nonEmpty)
-        "+core/publishSigned" :: "plugin/publishSigned" :: "snProviderCurl/publishSigned" :: "sonaRelease" :: state
+        "+core/publishSigned" :: "plugin/publishSigned" :: "snProviderCurl/publishSigned" ::
+          "panama-api/publishSigned" :: "panama-jdk/publishSigned" :: "sonaRelease" :: state
       else
-        "+core/publishSigned" :: "plugin/publishSigned" :: "snProviderCurl/publishSigned" :: state
+        "+core/publishSigned" :: "plugin/publishSigned" :: "snProviderCurl/publishSigned" ::
+          "panama-api/publishSigned" :: "panama-jdk/publishSigned" :: state
     }
   )
 
@@ -129,4 +131,33 @@ lazy val snProviderCurl = project
         }
       } else Seq.empty
     }
+  )
+
+// ── Panama FFM abstraction (Scala 3 only) ────────────────────────────
+
+lazy val `panama-api` = project
+  .in(file("panama-api"))
+  .settings(publishSettings *)
+  .settings(
+    name := "multiarch-panama-api",
+    scalaVersion := "3.3.7",
+    scalacOptions ++= Seq("-release", "17"),
+    // Conditional: include PanamaPortProvider when PanamaPort JARs are available.
+    // The JARs are downloaded from Maven Central and cached locally.
+    Compile / unmanagedSourceDirectories += baseDirectory.value / "src" / "main" / "scala-android",
+    Compile / unmanagedJars ++= {
+      val cacheDir = streams.value.cacheDirectory / "panama-port-deps"
+      val log      = streams.value.log
+      multiarch.sbt.AndroidDeps.resolvePanamaPort(cacheDir, log).map(Attributed.blank)
+    }
+  )
+
+lazy val `panama-jdk` = project
+  .in(file("panama-jdk"))
+  .dependsOn(`panama-api`)
+  .settings(publishSettings *)
+  .settings(
+    name := "multiarch-panama-jdk",
+    scalaVersion := "3.3.7"
+    // No -release flag — needs java.lang.foreign (JDK 22+)
   )

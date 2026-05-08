@@ -1,0 +1,8 @@
+{
+  "name": "multiarch-scala",
+  "description": "Cross-platform Scala setup guide — sbt-projectmatrix, Scala.js, Scala Native, native providers",
+  "version": "0.2.0",
+  "author": {"name": "kubuszok"},
+  "repository": "https://github.com/kubuszok/multiarch-scala",
+  "license": "Apache-2.0"
+}

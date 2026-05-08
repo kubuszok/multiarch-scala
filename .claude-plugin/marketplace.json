@@ -1,0 +1,26 @@
+{
+  "name": "kubuszok-multiarch-scala",
+  "owner": {
+    "name": "kubuszok",
+    "email": "mateusz.kubuszok@gmail.com"
+  },
+  "metadata": {
+    "description": "Cross-platform Scala setup guide — sbt-projectmatrix, Scala.js, Scala Native, native providers",
+    "pluginRoot": "./plugins"
+  },
+  "plugins": [
+    {
+      "name": "multiarch-scala",
+      "source": "./plugins/multiarch-scala",
+      "description": "Cross-platform Scala project setup — toolchain versions, NativeProviderPlugin flag ordering, Scala.js WASM, common pitfalls",
+      "version": "0.2.0",
+      "author": {
+        "name": "kubuszok"
+      },
+      "repository": "https://github.com/kubuszok/multiarch-scala",
+      "license": "Apache-2.0",
+      "keywords": ["scala", "cross-platform", "scala-native", "scalajs", "sbt", "native-providers"],
+      "category": "developer-tools"
+    }
+  ]
+}

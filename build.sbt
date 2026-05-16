@@ -1,5 +1,6 @@
 import kubuszok.sbt._
 import kubuszok.sbt.KubuszokPlugin.autoImport._
+import sbtwelcome.UsefulTask
 import multiarch.core.Platform
 
 // Maven Central requires a Javadoc JAR; publish an empty one for all modules.
@@ -36,11 +37,19 @@ val noPublishSettings =
 
 lazy val root = project
   .in(file("."))
+  .enablePlugins(KubuszokRootPlugin)
   .settings(publishSettings *)
   .settings(noPublishSettings *)
   .aggregate(core, plugin, snProviderCurl, `panama-api`, `panama-jdk`)
   .settings(
     name := "sbt-multiarch-scala-root",
+    logo := s"sbt-multiarch-scala ${version.value}",
+    usefulTasks := Seq(
+      UsefulTask("compile", "Compile all modules").noAlias,
+      UsefulTask("test", "Run all tests").noAlias,
+      UsefulTask("publishLocal", "Publish all modules locally").noAlias,
+      UsefulTask("ci-release", "Publish snapshot or release (based on git tags)").noAlias
+    ),
     // Custom ci-release: per-project publishing (some cross-compile, some don't)
     commands += Command.command("ci-release") { state =>
       val extracted = Project.extract(state)

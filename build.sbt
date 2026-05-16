@@ -1,23 +1,9 @@
+import kubuszok.sbt._
+import kubuszok.sbt.KubuszokPlugin.autoImport._
 import multiarch.core.Platform
 
-lazy val isCI = sys.env.get("CI").contains("true")
 // Maven Central requires a Javadoc JAR; publish an empty one for all modules.
 ThisBuild / Compile / doc / sources := Seq.empty
-
-// Version from git tags: tagged commits get clean versions (e.g. "0.1.0"),
-// untagged commits get SNAPSHOT versions (e.g. "0.1.0-SNAPSHOT").
-// When a vX.Y.Z tag exists, git describe produces that version directly.
-ThisBuild / git.useGitDescribe       := true
-ThisBuild / git.uncommittedSignifier := Some("SNAPSHOT")
-// Sonatype ignores isSnapshot setting and only looks at -SNAPSHOT suffix in version:
-//   https://central.sonatype.org/publish/publish-maven/#performing-a-snapshot-deployment
-// meanwhile sbt-git used to set up SNAPSHOT if there were uncommitted changes:
-//   https://github.com/sbt/sbt-git/issues/164
-// (now this suffix is empty by default) so we need to fix it manually.
-ThisBuild / git.gitUncommittedChanges := git.gitCurrentTags.value.isEmpty
-
-// Used to publish snapshots to Maven Central.
-val mavenCentralSnapshots = "Maven Central Snapshots" at "https://central.sonatype.com/repository/maven-snapshots"
 
 val publishSettings = Seq(
   organization := "com.kubuszok",
@@ -40,38 +26,25 @@ val publishSettings = Seq(
       <url>https://github.com/kubuszok/multiarch-scala/issues</url>
     </issueManagement>
   ),
-  publishTo := {
-    if (isSnapshot.value) Some(mavenCentralSnapshots)
-    else localStaging.value
-  },
-  publishMavenStyle := true,
-  Test / publishArtifact := false,
-  pomIncludeRepository := { _ =>
-    false
-  },
-  versionScheme := Some("early-semver")
+  projectType := ProjectType.ScalaLibrary
 )
 
 val noPublishSettings =
-  Seq(publish / skip := true, publishArtifact := false)
+  Seq(projectType := ProjectType.NonPublished)
 
 // ── Root project ──────────────────────────────────────────────────────
 
 lazy val root = project
   .in(file("."))
-  .enablePlugins(GitVersioning, GitBranchPrompt)
   .settings(publishSettings *)
   .settings(noPublishSettings *)
   .aggregate(core, plugin, snProviderCurl, `panama-api`, `panama-jdk`)
   .settings(
     name := "sbt-multiarch-scala-root",
-    // ci-release: snapshot on untagged push, release on tags
+    // Custom ci-release: per-project publishing (some cross-compile, some don't)
     commands += Command.command("ci-release") { state =>
       val extracted = Project.extract(state)
       val tags      = extracted.get(git.gitCurrentTags)
-      // +core/publishSigned cross-publishes core for all Scala versions (2.12, 2.13, 3.3)
-      // plugin/publishSigned publishes the sbt plugin (Scala 2.12 only)
-      // snProviderCurl/publishSigned publishes the curl provider (no Scala version)
       if (tags.nonEmpty)
         "+core/publishSigned" :: "plugin/publishSigned" :: "snProviderCurl/publishSigned" ::
           "panama-api/publishSigned" :: "panama-jdk/publishSigned" :: "sonaRelease" :: state
@@ -102,7 +75,7 @@ lazy val plugin = project
   .settings(publishSettings *)
   .settings(
     name := "sbt-multiarch-scala",
-    // Scala Native plugin API available at compile time; consumers must provide it themselves
+    projectType := ProjectType.JarOnly,
     addSbtPlugin("org.scala-native" % "sbt-scala-native" % "0.5.10" % Provided),
     addSbtPlugin("com.eed3si9n"     % "sbt-projectmatrix" % "0.11.0" % Provided)
   )
@@ -117,9 +90,6 @@ lazy val snProviderCurl = project
     autoScalaLibrary   := false,
     crossPaths         := false,
     Compile / packageSrc / publishArtifact := false,
-    // Bundle all 6 platforms' native libraries into the single JAR.
-    // Layout: native/<platform-classifier>/lib<name>.a
-    // The NativeExtract logic extracts only the current platform's files.
     Compile / packageBin / mappings ++= {
       val nativesDir = baseDirectory.value / "natives"
       if (nativesDir.exists()) {
@@ -142,8 +112,6 @@ lazy val `panama-api` = project
     name := "multiarch-panama-api",
     scalaVersion := "3.3.7",
     scalacOptions ++= Seq("-release", "17"),
-    // Conditional: include PanamaPortProvider when PanamaPort JARs are available.
-    // The JARs are downloaded from Maven Central and cached locally.
     Compile / unmanagedSourceDirectories += baseDirectory.value / "src" / "main" / "scala-android",
     Compile / unmanagedJars ++= {
       val cacheDir = streams.value.cacheDirectory / "panama-port-deps"
@@ -159,5 +127,4 @@ lazy val `panama-jdk` = project
   .settings(
     name := "multiarch-panama-jdk",
     scalaVersion := "3.3.7"
-    // No -release flag — needs java.lang.foreign (JDK 22+)
   )

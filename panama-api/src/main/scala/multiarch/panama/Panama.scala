@@ -2,8 +2,7 @@ package multiarch.panama
 
 /** Runtime selection of the Panama FFM provider.
   *
-  * On JDK 22+ (Desktop): `java.lang.foreign.MemorySegment` exists → JdkPanama.
-  * On Android with PanamaPort: that class is missing → PanamaPortProvider.
+  * On JDK 22+ (Desktop): `java.lang.foreign.MemorySegment` exists → JdkPanama. On Android with PanamaPort: that class is missing → PanamaPortProvider.
   */
 object Panama {
 
@@ -12,12 +11,11 @@ object Panama {
 
   /** Detect and instantiate the appropriate PanamaProvider.
     *
-    * Tries `java.lang.foreign.MemorySegment` first (JDK 22+), falls back to
-    * PanamaPort (Android). Override the class names to use custom providers.
+    * Tries `java.lang.foreign.MemorySegment` first (JDK 22+), falls back to PanamaPort (Android). Override the class names to use custom providers.
     */
   def detect(
-      jdkClass: String = "multiarch.panama.JdkPanama$",
-      androidClass: String = "multiarch.panama.PanamaPortProvider$"
+    jdkClass:     String = "multiarch.panama.JdkPanama$",
+    androidClass: String = "multiarch.panama.PanamaPortProvider$"
   ): PanamaProvider =
     try {
       Class.forName("java.lang.foreign.MemorySegment")

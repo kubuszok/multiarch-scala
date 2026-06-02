@@ -10,8 +10,7 @@ import java.nio.file.attribute.PosixFilePermissions
 
 /** Zig-based cross-compilation support for Scala Native.
   *
-  * Uses `zig cc` / `zig c++` as drop-in replacements for clang/clang++,
-  * enabling cross-compilation to non-host platforms from a single machine.
+  * Uses `zig cc` / `zig c++` as drop-in replacements for clang/clang++, enabling cross-compilation to non-host platforms from a single machine.
   *
   * Usage in build.sbt:
   * {{{
@@ -32,8 +31,7 @@ object ZigCross {
       case _: Exception => false
     }
 
-  /** Create a zig cc wrapper script for the target platform.
-    * Returns the path to the wrapper script.
+  /** Create a zig cc wrapper script for the target platform. Returns the path to the wrapper script.
     */
   def clangWrapper(platform: Platform, wrapperDir: File): Path = {
     val dir = wrapperDir.toPath
@@ -49,8 +47,7 @@ object ZigCross {
     wrapper
   }
 
-  /** Create a zig c++ wrapper script for the target platform.
-    * Returns the path to the wrapper script.
+  /** Create a zig c++ wrapper script for the target platform. Returns the path to the wrapper script.
     */
   def clangPPWrapper(platform: Platform, wrapperDir: File): Path = {
     val dir = wrapperDir.toPath
@@ -68,20 +65,18 @@ object ZigCross {
 
   /** sbt settings for cross-compilation to a target platform using zig.
     *
-    * Configures `nativeConfig` with zig cc/c++ wrappers and the target triple.
-    * Linker flags are provided by the NativeLibBundle manifest system.
+    * Configures `nativeConfig` with zig cc/c++ wrappers and the target triple. Linker flags are provided by the NativeLibBundle manifest system.
     *
-    * @param platform target platform to cross-compile for
+    * @param platform
+    *   target platform to cross-compile for
     */
   def crossSettings(platform: Platform): Seq[Setting[_]] = Seq(
-    NativeExtractSettings.nativeLibPlatform       := platform,
-    NativeProviderSettings.nativeProviderPlatform  := platform,
+    NativeExtractSettings.nativeLibPlatform := platform,
+    NativeProviderSettings.nativeProviderPlatform := platform,
     nativeConfig := {
       val c          = nativeConfig.value
       val wrapperDir = target.value / "zig-wrappers"
-      c.withClang(clangWrapper(platform, wrapperDir))
-        .withClangPP(clangPPWrapper(platform, wrapperDir))
-        .withTargetTriple(Some(platform.scalaNativeTarget))
+      c.withClang(clangWrapper(platform, wrapperDir)).withClangPP(clangPPWrapper(platform, wrapperDir)).withTargetTriple(Some(platform.scalaNativeTarget))
     }
   )
 }

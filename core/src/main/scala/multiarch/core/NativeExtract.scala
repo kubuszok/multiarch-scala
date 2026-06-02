@@ -7,15 +7,14 @@ import java.util.jar.JarFile
 
 /** Pure extraction and flag-merging logic for native library providers.
   *
-  * All methods are sbt-independent — they take `java.io.File` arguments
-  * and a simple [[NativeExtract.Logger]] for output.
+  * All methods are sbt-independent — they take `java.io.File` arguments and a simple [[NativeExtract.Logger]] for output.
   */
 object NativeExtract {
 
   /** Simple logging trait to avoid depending on sbt's Logger. */
   trait Logger {
-    def info(msg: String): Unit
-    def warn(msg: String): Unit
+    def info(msg:  String): Unit
+    def warn(msg:  String): Unit
     def error(msg: String): Unit
   }
 
@@ -30,17 +29,22 @@ object NativeExtract {
 
   /** Discover all provider manifests from JARs and resource directories.
     *
-    * @param jars JAR files to scan (e.g. from the compile classpath)
-    * @param resourceDirs project resource directories to scan
-    * @param providerTypes which provider types to look for
-    * @param logger for logging discoveries and warnings
-    * @return pairs of (provider type, parsed manifest)
+    * @param jars
+    *   JAR files to scan (e.g. from the compile classpath)
+    * @param resourceDirs
+    *   project resource directories to scan
+    * @param providerTypes
+    *   which provider types to look for
+    * @param logger
+    *   for logging discoveries and warnings
+    * @return
+    *   pairs of (provider type, parsed manifest)
     */
   def discoverManifests(
-      jars: Seq[File],
-      resourceDirs: Seq[File],
-      providerTypes: Seq[ProviderType],
-      logger: Logger
+    jars:          Seq[File],
+    resourceDirs:  Seq[File],
+    providerTypes: Seq[ProviderType],
+    logger:        Logger
   ): Seq[(ProviderType, ProviderManifest)] = {
     val filenames = providerTypes.map(pt => pt.filename -> pt).toMap
 
@@ -73,20 +77,20 @@ object NativeExtract {
   }
 
   private def scanJarForManifests(
-      file: File,
-      filenames: Map[String, ProviderType],
-      logger: Logger
-  ): Seq[(ProviderType, ProviderManifest)] = {
+    file:      File,
+    filenames: Map[String, ProviderType],
+    logger:    Logger
+  ): Seq[(ProviderType, ProviderManifest)] =
     try {
       val jar = new JarFile(file)
-      try {
+      try
         filenames.flatMap { case (filename, providerType) =>
           val entry = jar.getEntry(filename)
           if (entry != null) {
             val reader = new InputStreamReader(jar.getInputStream(entry), StandardCharsets.UTF_8)
             try {
-              val sb  = new StringBuilder
-              val buf = new Array[Char](4096)
+              val sb   = new StringBuilder
+              val buf  = new Array[Char](4096)
               var read = reader.read(buf)
               while (read > 0) { sb.appendAll(buf, 0, read); read = reader.read(buf) }
               val manifest = ProviderManifestCodec.parse(sb.toString)
@@ -96,20 +100,19 @@ object NativeExtract {
             } finally reader.close()
           } else None
         }.toSeq
-      } finally jar.close()
+      finally jar.close()
     } catch {
       case e: Exception =>
         logger.warn(s"[native-provider] Error reading ${file.getName}: ${e.getMessage}")
         Seq.empty
     }
-  }
 
   /** Validate a parsed manifest and throw on invalid/empty content. */
   private def validateManifest(
-      manifest: ProviderManifest,
-      source: String,
-      providerType: ProviderType,
-      logger: Logger
+    manifest:     ProviderManifest,
+    source:       String,
+    providerType: ProviderType,
+    logger:       Logger
   ): Unit = {
     if (manifest.configs.isEmpty) {
       throw new RuntimeException(
@@ -138,17 +141,22 @@ object NativeExtract {
     *
     * Flag groups from all matching configs are collected, deduplicated at the group level, and flattened.
     *
-    * @param manifests discovered manifests to merge
-    * @param platform target platform
-    * @param libDir optional directory containing extracted native libraries
-    * @param logger for logging
-    * @return merged, deduplicated linker flags
+    * @param manifests
+    *   discovered manifests to merge
+    * @param platform
+    *   target platform
+    * @param libDir
+    *   optional directory containing extracted native libraries
+    * @param logger
+    *   for logging
+    * @return
+    *   merged, deduplicated linker flags
     */
   def mergeFlags(
-      manifests: Seq[ProviderManifest],
-      platform: Platform,
-      libDir: Option[File],
-      logger: Logger
+    manifests: Seq[ProviderManifest],
+    platform:  Platform,
+    libDir:    Option[File],
+    logger:    Logger
   ): Seq[String] = {
     val classifier = platform.classifier
 
@@ -235,13 +243,11 @@ object NativeExtract {
     val jarFile        = new JarFile(jar)
     val platformPrefix = s"native/${platform.classifier}/"
     try {
-      val entries = new JarEntryIterator(jarFile)
-      val allEntries = entries.filterNot(_.isDirectory).toSeq
-      val hasPlatformDirs = allEntries.exists(e =>
-        Platform.all.exists(p => e.getName.startsWith(s"native/${p.classifier}/"))
-      )
+      val entries         = new JarEntryIterator(jarFile)
+      val allEntries      = entries.filterNot(_.isDirectory).toSeq
+      val hasPlatformDirs = allEntries.exists(e => Platform.all.exists(p => e.getName.startsWith(s"native/${p.classifier}/")))
       allEntries.foreach { entry =>
-        val name = entry.getName
+        val name        = entry.getName
         val fileNameOpt =
           if (hasPlatformDirs) {
             if (name.startsWith(platformPrefix)) Some(name.stripPrefix(platformPrefix))
@@ -267,9 +273,8 @@ object NativeExtract {
 
   /** On Windows, create `foo.lib` copies of `libfoo.a` archives.
     *
-    * The MSVC linker (used by Scala Native on Windows) resolves `@link("foo")`
-    * as `foo.lib`, but GCC-style static archives from provider JARs are named
-    * `libfoo.a`. This creates `.lib` copies so both naming conventions resolve.
+    * The MSVC linker (used by Scala Native on Windows) resolves `@link("foo")` as `foo.lib`, but GCC-style static archives from provider JARs are named `libfoo.a`. This creates `.lib` copies so both
+    * naming conventions resolve.
     */
   def createWindowsLibAliases(dir: File, logger: Logger): Unit = {
     val files = dir.listFiles()
@@ -298,8 +303,10 @@ object NativeExtract {
 
   /** Create resource mappings for packaging native libraries into a JAR.
     *
-    * @param nativeDir directory containing native library files
-    * @return pairs of (source file, JAR entry path)
+    * @param nativeDir
+    *   directory containing native library files
+    * @return
+    *   pairs of (source file, JAR entry path)
     */
   def jarMappings(nativeDir: File): Seq[(File, String)] =
     if (!nativeDir.exists()) Seq.empty
@@ -314,7 +321,7 @@ object NativeExtract {
   /** Scala 2.12-compatible wrapper around `JarFile.entries()`. */
   private class JarEntryIterator(jar: JarFile) extends Iterator[java.util.jar.JarEntry] {
     private val underlying = jar.entries()
-    def hasNext: Boolean = underlying.hasMoreElements
-    def next(): java.util.jar.JarEntry = underlying.nextElement()
+    def hasNext: Boolean                = underlying.hasMoreElements
+    def next():  java.util.jar.JarEntry = underlying.nextElement()
   }
 }

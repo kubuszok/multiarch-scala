@@ -5,8 +5,7 @@ import java.nio.ByteBuffer
 
 /** PanamaProvider implementation using com.v7878.foreign (PanamaPort).
   *
-  * Used on Android where java.lang.foreign is not available.
-  * On Desktop JVM this class is never loaded (PanamaPort is a Provided dependency).
+  * Used on Android where java.lang.foreign is not available. On Desktop JVM this class is never loaded (PanamaPort is a Provided dependency).
   */
 object PanamaPortProvider extends PanamaProvider {
 

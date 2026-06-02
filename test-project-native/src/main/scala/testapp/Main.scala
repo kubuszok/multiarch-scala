@@ -9,9 +9,7 @@ object Main {
 
     // Make a real HTTP request to verify curl native library works.
     // Use HTTP (not HTTPS) since the static curl build may lack a TLS backend.
-    val response = quickRequest
-      .get(uri"http://httpbin.org/get")
-      .send()
+    val response = quickRequest.get(uri"http://httpbin.org/get").send()
 
     println(s"HTTP status: ${response.code}")
     if (response.code.isSuccess) {

@@ -11,10 +11,9 @@ import java.util.concurrent.ConcurrentHashMap
   *   3. Android class loader (when running on Android/ART)
   *   4. Throws `UnsatisfiedLinkError` with diagnostic message
   *
-  * Extracted libraries go to a per-JVM temp directory that is deleted on exit.
-  * Thread-safe: each library is extracted at most once per JVM.
+  * Extracted libraries go to a per-JVM temp directory that is deleted on exit. Thread-safe: each library is extracted at most once per JVM.
   *
-  * === Usage ===
+  * ===Usage===
   * {{{
   * // Auto-discover and load all libraries from provider manifests on classpath
   * NativeLibLoader.loadAll(ProviderType.Jni)
@@ -54,14 +53,14 @@ object NativeLibLoader {
   /** The host platform classifier (e.g. `"macos-aarch64"`, `"linux-x86_64"`, `"android-aarch64"`). */
   private val hostClassifier: String = {
     val osName = System.getProperty("os.name", "").toLowerCase
-    val os =
+    val os     =
       if (isAndroid) "android"
       else if (osName.contains("mac")) "macos"
       else if (osName.contains("linux")) "linux"
       else if (osName.contains("win")) "windows"
       else throw new UnsatisfiedLinkError(s"Unsupported OS: $osName")
     val archProp = System.getProperty("os.arch", "")
-    val arch = archProp match {
+    val arch     = archProp match {
       case "amd64" | "x86_64"               => "x86_64"
       case "aarch64" | "arm64"              => "aarch64"
       case "armv7l" | "armeabi-v7a" | "arm" => "armv7"
@@ -79,39 +78,38 @@ object NativeLibLoader {
 
   /** Locate and return the filesystem path to the given native library.
     *
-    * @param libName the logical library name (e.g. `"mylib"`, `"curl"`)
-    * @return the absolute path to the library file
-    * @throws UnsatisfiedLinkError if the library cannot be found
+    * @param libName
+    *   the logical library name (e.g. `"mylib"`, `"curl"`)
+    * @return
+    *   the absolute path to the library file
+    * @throws UnsatisfiedLinkError
+    *   if the library cannot be found
     */
   def load(libName: String): Path = {
     val cached = cache.get(libName)
     if (cached != null) return cached
 
     val mapped = mappedFileName(libName)
-    val result = findOnLibraryPath(mapped)
-      .orElse(extractFromClasspath(libName, mapped))
-      .orElse(loadViaSystemOnAndroid(libName, mapped))
-      .getOrElse {
-        val libPath = System.getProperty("java.library.path", "")
-        throw new UnsatisfiedLinkError(
-          s"Cannot find native library '$mapped' (logical name: '$libName').\n" +
-            s"  Searched java.library.path: $libPath\n" +
-            s"  Searched classpath resource: native/$hostClassifier/$mapped\n" +
-            s"  Host platform: $hostClassifier"
-        )
-      }
+    val result = findOnLibraryPath(mapped).orElse(extractFromClasspath(libName, mapped)).orElse(loadViaSystemOnAndroid(libName, mapped)).getOrElse {
+      val libPath = System.getProperty("java.library.path", "")
+      throw new UnsatisfiedLinkError(
+        s"Cannot find native library '$mapped' (logical name: '$libName').\n" +
+          s"  Searched java.library.path: $libPath\n" +
+          s"  Searched classpath resource: native/$hostClassifier/$mapped\n" +
+          s"  Host platform: $hostClassifier"
+      )
+    }
 
     cache.putIfAbsent(libName, result)
     cache.get(libName)
   }
 
-  /** Auto-discover provider manifests on the classpath and load all binaries
-    * declared for the current platform.
+  /** Auto-discover provider manifests on the classpath and load all binaries declared for the current platform.
     *
-    * Only applies to JNI and Panama provider types (dynamic libraries).
-    * Scala Native providers are statically linked at build time.
+    * Only applies to JNI and Panama provider types (dynamic libraries). Scala Native providers are statically linked at build time.
     *
-    * @param providerType the provider type to discover (typically `ProviderType.Jni` or `ProviderType.Panama`)
+    * @param providerType
+    *   the provider type to discover (typically `ProviderType.Jni` or `ProviderType.Panama`)
     */
   def loadAll(providerType: ProviderType): Unit = {
     val manifests = discoverClasspathManifests(providerType)
@@ -120,10 +118,8 @@ object NativeLibLoader {
         config.platforms.get(hostClassifier).foreach { platConfig =>
           platConfig.binary.foreach { binaryName =>
             if (!platConfig.stub) {
-              val libName = binaryName
-                .stripPrefix("lib")
-                .replaceAll("\\.(so|dylib|dll)$", "")
-              val path = load(libName)
+              val libName = binaryName.stripPrefix("lib").replaceAll("\\.(so|dylib|dll)$", "")
+              val path    = load(libName)
               System.load(path.toAbsolutePath.toString)
             }
           }
@@ -132,11 +128,12 @@ object NativeLibLoader {
     }
   }
 
-  /** Auto-discover provider manifests on the classpath and load binaries
-    * for specific config names only.
+  /** Auto-discover provider manifests on the classpath and load binaries for specific config names only.
     *
-    * @param providerType the provider type to discover
-    * @param configNames config names to load (others are skipped)
+    * @param providerType
+    *   the provider type to discover
+    * @param configNames
+    *   config names to load (others are skipped)
     */
   def loadConfigs(providerType: ProviderType, configNames: Set[String]): Unit = {
     val manifests = discoverClasspathManifests(providerType)
@@ -146,10 +143,8 @@ object NativeLibLoader {
           config.platforms.get(hostClassifier).foreach { platConfig =>
             platConfig.binary.foreach { binaryName =>
               if (!platConfig.stub) {
-                val libName = binaryName
-                  .stripPrefix("lib")
-                  .replaceAll("\\.(so|dylib|dll)$", "")
-                val path = load(libName)
+                val libName = binaryName.stripPrefix("lib").replaceAll("\\.(so|dylib|dll)$", "")
+                val path    = load(libName)
                 System.load(path.toAbsolutePath.toString)
               }
             }

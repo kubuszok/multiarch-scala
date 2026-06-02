@@ -5,10 +5,10 @@ package multiarch.core
   * A JAR should contain at most one of these manifest files.
   */
 sealed abstract class ProviderType(
-    /** Manifest filename (e.g. `"sn-provider.json"`). */
-    val filename: String,
-    /** Human-readable label for logging (e.g. `"Scala Native"`). */
-    val label: String
+  /** Manifest filename (e.g. `"sn-provider.json"`). */
+  val filename: String,
+  /** Human-readable label for logging (e.g. `"Scala Native"`). */
+  val label: String
 )
 
 object ProviderType {
@@ -26,10 +26,9 @@ object ProviderType {
   val all: Seq[ProviderType] = Seq(Jni, Panama, ScalaNative)
 
   /** Resolve a provider type from its filename.
-    * @throws RuntimeException if the filename is not recognized
+    * @throws RuntimeException
+    *   if the filename is not recognized
     */
   def fromFilename(filename: String): ProviderType =
-    all
-      .find(_.filename == filename)
-      .getOrElse(throw new RuntimeException(s"Unknown provider type filename: $filename"))
+    all.find(_.filename == filename).getOrElse(throw new RuntimeException(s"Unknown provider type filename: $filename"))
 }

@@ -2,18 +2,16 @@ package multiarch.sbt
 
 import sbt._
 import sbt.Keys._
-import scala.sys.process.{Process => SysProcess}
+import scala.sys.process.{ Process => SysProcess }
 
 /** sbt settings and tasks for building Android APKs from Scala — no Gradle.
   *
   * Build pipeline: scalac (JVM bytecode) → D8 (DEX + desugaring) → aapt2 (package) → apksigner
   *
-  * Uses D8 for DEX compilation. The Android SDK is only required when running
-  * `android*` tasks (androidDex, androidPackage, etc.). Normal compilation works
-  * without the SDK — `android.jar` is added to `unmanagedJars` only when present.
+  * Uses D8 for DEX compilation. The Android SDK is only required when running `android*` tasks (androidDex, androidPackage, etc.). Normal compilation works without the SDK — `android.jar` is added to
+  * `unmanagedJars` only when present.
   *
-  * Prefer [[AndroidPlugin]] (the AutoPlugin wrapper). Apply `AndroidBuild.taskSettings`
-  * directly only when manually composing settings outside AutoPlugin enablement.
+  * Prefer [[AndroidPlugin]] (the AutoPlugin wrapper). Apply `AndroidBuild.taskSettings` directly only when manually composing settings outside AutoPlugin enablement.
   */
 object AndroidBuild {
 
@@ -35,18 +33,16 @@ object AndroidBuild {
 
   // ── Settings ────────────────────────────────────────────────────────
 
-  /** Android build tasks — adds `androidDex`, `androidPackage`, `androidSign`, `androidInstall`
-    * plus `android.jar` on the compile classpath.
+  /** Android build tasks — adds `androidDex`, `androidPackage`, `androidSign`, `androidInstall` plus `android.jar` on the compile classpath.
     *
-    * `androidSdkCacheDir` must be set (or will default to `baseDirectory.value / "android-sdk"`
-    * via [[AndroidPlugin]]).
+    * `androidSdkCacheDir` must be set (or will default to `baseDirectory.value / "android-sdk"` via [[AndroidPlugin]]).
     */
   val taskSettings: Seq[Setting[_]] = Seq(
     // SDK config (static, no download)
-    androidMinSdk            := AndroidSdk.minSdkVersion,
-    androidTargetSdk         := AndroidSdk.targetSdkVersion,
+    androidMinSdk := AndroidSdk.minSdkVersion,
+    androidTargetSdk := AndroidSdk.targetSdkVersion,
     androidBuildToolsVersion := AndroidSdk.buildToolsVersion,
-    androidR8Rules           := None,
+    androidR8Rules := None,
 
     // SDK resolution — task, only runs when android tasks are invoked
     androidSdkRoot := {
@@ -116,7 +112,7 @@ object AndroidBuild {
         classDirs.foreach { dir =>
           val base   = dir.toPath
           val walker = java.nio.file.Files.walk(base)
-          try {
+          try
             walker.forEach { path =>
               if (java.nio.file.Files.isRegularFile(path)) {
                 val entry = base.relativize(path).toString.replace('\\', '/')
@@ -127,7 +123,7 @@ object AndroidBuild {
                 }
               }
             }
-          } finally walker.close()
+          finally walker.close()
         }
         // Add dependency JARs (excluding android.jar and scribe)
         jars.filterNot(j => j.getName == "android.jar" || isScribeJar(j)).foreach { jar =>
@@ -158,10 +154,16 @@ object AndroidBuild {
 
       log.info(s"Running D8 (minApi=$minApi) ...")
       val d8Cmd = Seq(
-        "java", "-cp", r8Jar.getAbsolutePath, "com.android.tools.r8.D8",
-        "--min-api", minApi.toString,
-        "--lib", AndroidSdk.androidJar(sdk).getAbsolutePath,
-        "--output", dexDir.getAbsolutePath,
+        "java",
+        "-cp",
+        r8Jar.getAbsolutePath,
+        "com.android.tools.r8.D8",
+        "--min-api",
+        minApi.toString,
+        "--lib",
+        AndroidSdk.androidJar(sdk).getAbsolutePath,
+        "--output",
+        dexDir.getAbsolutePath,
         fatJar.getAbsolutePath
       )
       val d8Exit = SysProcess(d8Cmd).!(log)
@@ -200,7 +202,7 @@ object AndroidBuild {
       resDirs.filter(_.isDirectory).foreach { dir =>
         val base   = dir.toPath
         val walker = java.nio.file.Files.walk(base)
-        try {
+        try
           walker.forEach { path =>
             if (java.nio.file.Files.isRegularFile(path)) {
               val rel = base.relativize(path).toString.replace('\\', '/')
@@ -211,7 +213,7 @@ object AndroidBuild {
               }
             }
           }
-        } finally walker.close()
+        finally walker.close()
       }
       val hasAssets = IO.listFiles(assetsDir).nonEmpty
 
@@ -222,11 +224,16 @@ object AndroidBuild {
       val linkCmd = Seq(
         aapt2Path.getAbsolutePath,
         "link",
-        "-o", apkBase.getAbsolutePath,
-        "-I", AndroidSdk.androidJar(sdk).getAbsolutePath,
-        "--manifest", manifest.getAbsolutePath,
-        "--min-sdk-version", androidMinSdk.value.toString,
-        "--target-sdk-version", androidTargetSdk.value.toString
+        "-o",
+        apkBase.getAbsolutePath,
+        "-I",
+        AndroidSdk.androidJar(sdk).getAbsolutePath,
+        "--manifest",
+        manifest.getAbsolutePath,
+        "--min-sdk-version",
+        androidMinSdk.value.toString,
+        "--target-sdk-version",
+        androidTargetSdk.value.toString
       ) ++ (if (hasAssets) Seq("-A", assetsDir.getAbsolutePath) else Seq.empty)
       val linkExit = SysProcess(linkCmd).!(log)
       if (linkExit != 0) throw new RuntimeException(s"aapt2 link failed with exit code $linkExit")
@@ -238,7 +245,7 @@ object AndroidBuild {
       // Add native libs from src/main/resources/lib/ (project-local)
       val nativeLibsDir = (Compile / resourceDirectory).value / "lib"
       if (nativeLibsDir.isDirectory) {
-        val basePath = nativeLibsDir.toPath
+        val basePath    = nativeLibsDir.toPath
         val nativeFiles = (nativeLibsDir ** "*").get.filter(_.isFile).flatMap { f =>
           val rel = basePath.relativize(f.toPath).toString.replace('\\', '/')
           Seq((f, s"lib/$rel"))
@@ -248,7 +255,7 @@ object AndroidBuild {
 
       // Extract native .so files from dependency JARs (e.g. providers that bundle native/android-*/*.so)
       // and add them as lib/<abi>/*.so in the APK for Android's native lib loader.
-      val cp = (Compile / fullClasspath).value.map(_.data)
+      val cp                  = (Compile / fullClasspath).value.map(_.data)
       val extractedNativeLibs = extractNativeLibsFromJars(cp, target / "native-libs", log)
       if (extractedNativeLibs.nonEmpty) {
         addFilesToZipWithPaths(apkBase, extractedNativeLibs)
@@ -259,7 +266,9 @@ object AndroidBuild {
       log.info("Zipaligning APK...")
       val zalignCmd = Seq(
         zPath.getAbsolutePath,
-        "-f", "-p", "4",
+        "-f",
+        "-p",
+        "4",
         apkBase.getAbsolutePath,
         aligned.getAbsolutePath
       )
@@ -282,13 +291,24 @@ object AndroidBuild {
         log.info("Creating debug keystore...")
         val keytoolCmd = Seq(
           "keytool",
-          "-genkeypair", "-v",
-          "-keystore", debugKs.getAbsolutePath,
-          "-alias", "androiddebugkey",
-          "-keyalg", "RSA", "-keysize", "2048",
-          "-validity", "10000",
-          "-storepass", "android", "-keypass", "android",
-          "-dname", "CN=Debug,O=Android,L=Unknown,S=Unknown,C=US"
+          "-genkeypair",
+          "-v",
+          "-keystore",
+          debugKs.getAbsolutePath,
+          "-alias",
+          "androiddebugkey",
+          "-keyalg",
+          "RSA",
+          "-keysize",
+          "2048",
+          "-validity",
+          "10000",
+          "-storepass",
+          "android",
+          "-keypass",
+          "android",
+          "-dname",
+          "CN=Debug,O=Android,L=Unknown,S=Unknown,C=US"
         )
         val ksExit = SysProcess(keytoolCmd).!(log)
         if (ksExit != 0) throw new RuntimeException(s"keytool failed with exit code $ksExit")
@@ -300,9 +320,12 @@ object AndroidBuild {
       val signCmd = Seq(
         AndroidSdk.apksigner(sdk).getAbsolutePath,
         "sign",
-        "--ks", debugKs.getAbsolutePath,
-        "--ks-pass", "pass:android",
-        "--ks-key-alias", "androiddebugkey",
+        "--ks",
+        debugKs.getAbsolutePath,
+        "--ks-pass",
+        "pass:android",
+        "--ks-key-alias",
+        "androiddebugkey",
         signed.getAbsolutePath
       )
       log.info("Signing APK...")
@@ -379,19 +402,18 @@ object AndroidBuild {
   /** Mapping from provider JAR native/ classifiers to APK lib/ ABI directories. */
   private val nativeClassifierToAbi: Map[String, String] = Map(
     "android-aarch64" -> "arm64-v8a",
-    "android-armv7"   -> "armeabi-v7a",
-    "android-x86_64"  -> "x86_64"
+    "android-armv7" -> "armeabi-v7a",
+    "android-x86_64" -> "x86_64"
   )
 
   /** Extract native .so files from dependency JARs.
     *
-    * Scans all JAR files on the classpath for entries matching `native/android-<arch>/<name>.so`,
-    * extracts them to a temp directory, and returns (file, archivePath) pairs for APK inclusion.
+    * Scans all JAR files on the classpath for entries matching `native/android-<arch>/<name>.so`, extracts them to a temp directory, and returns (file, archivePath) pairs for APK inclusion.
     */
   private def extractNativeLibsFromJars(
-      cp: Seq[File],
-      extractDir: File,
-      log: sbt.util.Logger
+    cp:         Seq[File],
+    extractDir: File,
+    log:        sbt.util.Logger
   ): Seq[(File, String)] = {
     IO.createDirectory(extractDir)
     val jars   = cp.filter(f => f.isFile && f.getName.endsWith(".jar"))

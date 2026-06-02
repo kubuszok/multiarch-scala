@@ -8,7 +8,7 @@ class ProviderManifestCodecSpec extends munit.FunSuite {
       "provider-name": "test",
       "configs": []
     }"""
-    val m = ProviderManifestCodec.parse(json)
+    val m    = ProviderManifestCodec.parse(json)
     assertEquals(m.schemaVersion, "0.1.0")
     assertEquals(m.providerName, "test")
     assertEquals(m.configs.size, 0)
@@ -28,7 +28,7 @@ class ProviderManifestCodecSpec extends munit.FunSuite {
         }
       ]
     }"""
-    val m = ProviderManifestCodec.parse(json)
+    val m    = ProviderManifestCodec.parse(json)
     assertEquals(m.providerName, "mylib")
     assertEquals(m.configs.size, 1)
 
@@ -100,7 +100,7 @@ class ProviderManifestCodecSpec extends munit.FunSuite {
         }
       ]
     }"""
-    val m = ProviderManifestCodec.parse(json)
+    val m    = ProviderManifestCodec.parse(json)
     assertEquals(m.configs.size, 2)
     assertEquals(m.configs(0).configName, "curl")
     assertEquals(m.configs(0).platforms.size, 2)
@@ -178,7 +178,7 @@ class ProviderManifestCodecSpec extends munit.FunSuite {
       "provider-name": "test\"name",
       "configs": []
     }"""
-    val m = ProviderManifestCodec.parse(json)
+    val m    = ProviderManifestCodec.parse(json)
     assertEquals(m.providerName, "test\"name")
   }
 }

@@ -6,8 +6,8 @@ import java.nio.file.Files
 class NativeExtractSpec extends munit.FunSuite {
 
   private val testLogger = new NativeExtract.Logger {
-    def info(msg: String): Unit  = ()
-    def warn(msg: String): Unit  = ()
+    def info(msg:  String): Unit = ()
+    def warn(msg:  String): Unit = ()
     def error(msg: String): Unit = ()
   }
 
@@ -46,7 +46,7 @@ class NativeExtractSpec extends munit.FunSuite {
     )
 
     withTempLibDir(Seq("libcurl.a")) { libDir =>
-      val flags = NativeExtract.mergeFlags(Seq(manifest), Platform.LinuxX86_64, Some(libDir), testLogger)
+      val flags      = NativeExtract.mergeFlags(Seq(manifest), Platform.LinuxX86_64, Some(libDir), testLogger)
       val libDirFlag = s"-L${libDir.getAbsolutePath}"
       val curlPath   = new File(libDir, "libcurl.a").getAbsolutePath
 
@@ -323,10 +323,10 @@ class NativeExtractSpec extends munit.FunSuite {
   }
 
   test("mergeFlags with no lib dir and binary set warns") {
-    val warnings = scala.collection.mutable.ArrayBuffer.empty[String]
+    val warnings   = scala.collection.mutable.ArrayBuffer.empty[String]
     val warnLogger = new NativeExtract.Logger {
-      def info(msg: String): Unit  = ()
-      def warn(msg: String): Unit  = warnings += msg
+      def info(msg:  String): Unit = ()
+      def warn(msg:  String): Unit = warnings += msg
       def error(msg: String): Unit = ()
     }
 

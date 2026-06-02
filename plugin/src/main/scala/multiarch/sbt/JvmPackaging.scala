@@ -11,8 +11,7 @@ import java.nio.file.{ Files, StandardCopyOption }
   *
   * Two packaging modes are available:
   *
-  * '''Simple mode''' (`releasePackage`) — produces a directory with launcher scripts
-  * that rely on a system-installed JDK:
+  * '''Simple mode''' (`releasePackage`) — produces a directory with launcher scripts that rely on a system-installed JDK:
   * {{{
   * <app>/
   * ├── bin/
@@ -24,37 +23,35 @@ import java.nio.file.{ Files, StandardCopyOption }
   *     └── *.{so,dylib,dll}  (platform shared libraries)
   * }}}
   *
-  * '''Distribution mode''' (`releasePlatform`, `releaseAll`) — produces
-  * self-contained archives per target platform, bundling a jlinked JRE and
-  * a native Roast launcher. No system JDK required by end users:
+  * '''Distribution mode''' (`releasePlatform`, `releaseAll`) — produces self-contained archives per target platform, bundling a jlinked JRE and a native Roast launcher. No system JDK required by end
+  * users:
   * {{{
   * <app>-linux-x86_64.tar.gz
   * <app>-macos-aarch64.tar.gz   (contains .app bundle)
   * <app>-windows-x86_64.zip
   * }}}
   *
-  * Enable simple mode with `.settings(JvmPackaging.jvmSettings *)`.
-  * Enable distribution mode by also adding `.settings(JvmPackaging.distSettings *)`.
+  * Enable simple mode with `.settings(JvmPackaging.jvmSettings *)`. Enable distribution mode by also adding `.settings(JvmPackaging.distSettings *)`.
   */
 object JvmPackaging {
 
   // ── Keys: simple mode ─────────────────────────────────────────────
 
-  val releasePackage   = taskKey[File]("Create a distributable application package (simple mode)")
-  val releaseAppName   = settingKey[String]("Application display name for the package")
+  val releasePackage       = taskKey[File]("Create a distributable application package (simple mode)")
+  val releaseAppName       = settingKey[String]("Application display name for the package")
   val releaseNativeLibDirs = settingKey[Seq[File]]("Directories containing native shared libraries to bundle")
 
   // ── Keys: distribution mode ───────────────────────────────────────
 
-  val releaseTargets          = settingKey[Map[Platform, String]]("Target platforms and their JDK download URLs")
-  val releaseJlinkModules     = settingKey[Seq[String]]("Java modules to include in the jlinked runtime")
-  val releaseRoastVersion     = settingKey[String]("Roast native launcher version")
-  val releaseVmArgs           = settingKey[Seq[String]]("JVM arguments passed via Roast config")
-  val releaseUseZgc           = settingKey[Boolean]("Enable ZGC garbage collector on supported platforms")
-  val releaseMacOsBundleId    = settingKey[String]("macOS bundle identifier (e.g. com.example.MyGame)")
-  val releaseMacOsIcon        = settingKey[Option[File]]("Path to .icns file for macOS app bundle")
-  val releaseCacheDir         = settingKey[File]("Download cache directory for JDKs and Roast binaries")
-  val releaseRunOnFirstThread = settingKey[Boolean]("Run JVM on first thread (required for macOS graphics)")
+  val releaseTargets           = settingKey[Map[Platform, String]]("Target platforms and their JDK download URLs")
+  val releaseJlinkModules      = settingKey[Seq[String]]("Java modules to include in the jlinked runtime")
+  val releaseRoastVersion      = settingKey[String]("Roast native launcher version")
+  val releaseVmArgs            = settingKey[Seq[String]]("JVM arguments passed via Roast config")
+  val releaseUseZgc            = settingKey[Boolean]("Enable ZGC garbage collector on supported platforms")
+  val releaseMacOsBundleId     = settingKey[String]("macOS bundle identifier (e.g. com.example.MyGame)")
+  val releaseMacOsIcon         = settingKey[Option[File]]("Path to .icns file for macOS app bundle")
+  val releaseCacheDir          = settingKey[File]("Download cache directory for JDKs and Roast binaries")
+  val releaseRunOnFirstThread  = settingKey[Boolean]("Run JVM on first thread (required for macOS graphics)")
   val releaseCrossNativeLibDir = settingKey[Option[File]](
     "Cross-compilation output root. When set, dist packaging uses <dir>/<platform-classifier>/ per platform."
   )
@@ -100,7 +97,7 @@ object JvmPackaging {
     val nativeDir = outDir / "native"
     IO.createDirectory(nativeDir)
     for {
-      dir  <- releaseNativeLibDirs.value if dir.exists()
+      dir <- releaseNativeLibDirs.value if dir.exists()
       file <- IO.listFiles(dir) if NativeLibExts.exists(file.getName.endsWith)
     } IO.copyFile(file, nativeDir / file.getName)
 
@@ -118,7 +115,7 @@ object JvmPackaging {
   }
 
   private def writeUnixLauncher(file: File, jars: Seq[String], mainClass: String): Unit = {
-    val cp = jars.map(j => "\"$APP_HOME/lib/" + j + "\"").mkString(":")
+    val cp     = jars.map(j => "\"$APP_HOME/lib/" + j + "\"").mkString(":")
     val script =
       s"""#!/bin/sh
          |set -e
@@ -134,7 +131,7 @@ object JvmPackaging {
   }
 
   private def writeWindowsLauncher(file: File, jars: Seq[String], mainClass: String): Unit = {
-    val cp = jars.map(j => s"%APP_HOME%\\lib\\$j").mkString(";")
+    val cp     = jars.map(j => s"%APP_HOME%\\lib\\$j").mkString(";")
     val script =
       s"""@echo off
          |set APP_HOME=%~dp0..
@@ -150,9 +147,9 @@ object JvmPackaging {
   // ── Simple mode settings ──────────────────────────────────────────
 
   lazy val jvmSettings: Seq[Setting[_]] = Seq(
-    releaseAppName       := name.value,
+    releaseAppName := name.value,
     releaseNativeLibDirs := Seq.empty,
-    releasePackage       := packageJvm.value
+    releasePackage := packageJvm.value
   )
 
   // ── Distribution mode implementation ──────────────────────────────
@@ -237,9 +234,7 @@ object JvmPackaging {
   /** Extract a .tar.gz archive using the system `tar` command. */
   private def extractTarGz(archive: File, destDir: File, log: sbt.util.Logger): Unit = {
     IO.createDirectory(destDir)
-    val proc = new ProcessBuilder("tar", "xzf", archive.getAbsolutePath, "-C", destDir.getAbsolutePath)
-      .redirectErrorStream(true)
-      .start()
+    val proc = new ProcessBuilder("tar", "xzf", archive.getAbsolutePath, "-C", destDir.getAbsolutePath).redirectErrorStream(true).start()
     val exit = proc.waitFor()
     if (exit != 0) {
       val output = new String(proc.getInputStream.readAllBytes())
@@ -283,8 +278,8 @@ object JvmPackaging {
 
   /** Download and extract a JDK, returning the JDK root directory. */
   private def resolveJdk(url: String, platform: Platform, cacheDir: File, log: sbt.util.Logger): File = {
-    val jdkCache = cacheDir / "jdks"
-    val archive  = downloadToCache(url, jdkCache, log)
+    val jdkCache   = cacheDir / "jdks"
+    val archive    = downloadToCache(url, jdkCache, log)
     val extractDir = jdkCache / s"extracted-${platform.classifier}"
     if (!extractDir.exists() || IO.listFiles(extractDir).isEmpty) {
       log.info(s"[release] Extracting JDK for $platform...")
@@ -315,22 +310,19 @@ object JvmPackaging {
       extractZip(archive, extractDir, log)
     }
 
-    IO.listFiles(extractDir)
-      .find(f => f.isFile && f.getName.startsWith("roast"))
-      .getOrElse(throw new RuntimeException(s"Roast binary not found in $extractDir"))
+    IO.listFiles(extractDir).find(f => f.isFile && f.getName.startsWith("roast")).getOrElse(throw new RuntimeException(s"Roast binary not found in $extractDir"))
   }
 
   /** Run jlink to create a minimal JRE.
     *
-    * When the target OS matches the host OS, uses the target JDK's own jlink binary.
-    * For cross-OS targets, copies the full target JDK runtime (larger but always correct).
+    * When the target OS matches the host OS, uses the target JDK's own jlink binary. For cross-OS targets, copies the full target JDK runtime (larger but always correct).
     */
   private def runJlink(
-      targetJdkRoot: File,
-      targetPlatform: Platform,
-      modules: Seq[String],
-      outputDir: File,
-      log: sbt.util.Logger
+    targetJdkRoot:  File,
+    targetPlatform: Platform,
+    modules:        Seq[String],
+    outputDir:      File,
+    log:            sbt.util.Logger
   ): File = {
     val targetJmodsDir = targetJdkRoot / "jmods"
     if (!targetJmodsDir.exists()) {
@@ -400,20 +392,20 @@ object JvmPackaging {
 
   /** Write the Roast JSON configuration file. */
   private def writeRoastConfig(
-      configFile: File,
-      appName: String,
-      jars: Seq[String],
-      mainClass: String,
-      vmArgs: Seq[String],
-      useZgc: Boolean,
-      runOnFirstThread: Boolean,
-      platform: Platform,
-      hasNativeLibs: Boolean
+    configFile:       File,
+    appName:          String,
+    jars:             Seq[String],
+    mainClass:        String,
+    vmArgs:           Seq[String],
+    useZgc:           Boolean,
+    runOnFirstThread: Boolean,
+    platform:         Platform,
+    hasNativeLibs:    Boolean
   ): Unit = {
     val cpEntries = jars.map(j => s""""app/$j"""").mkString(",\n    ")
 
     val allVmArgs = {
-      val base = vmArgs :+ "--enable-native-access=ALL-UNNAMED"
+      val base       = vmArgs :+ "--enable-native-access=ALL-UNNAMED"
       val withNative =
         if (hasNativeLibs) base :+ "-Djava.library.path=native"
         else base
@@ -422,7 +414,7 @@ object JvmPackaging {
     val vmArgsJson = allVmArgs.map(a => s""""$a"""").mkString(",\n    ")
 
     val isMac = platform.isMac
-    val json =
+    val json  =
       s"""{
          |  "classPath": [
          |    $cpEntries
@@ -441,10 +433,10 @@ object JvmPackaging {
 
   /** Write a macOS Info.plist file. */
   private def writeInfoPlist(
-      file: File,
-      appName: String,
-      bundleId: String,
-      hasIcon: Boolean
+    file:     File,
+    appName:  String,
+    bundleId: String,
+    hasIcon:  Boolean
   ): Unit = {
     val iconEntry =
       if (hasIcon)
@@ -478,13 +470,10 @@ object JvmPackaging {
     IO.write(file, plist)
   }
 
-  /** Ad-hoc sign a file with `codesign --force --sign -`. Only meaningful on macOS.
-    * Non-fatal: logs a warning on failure instead of throwing.
+  /** Ad-hoc sign a file with `codesign --force --sign -`. Only meaningful on macOS. Non-fatal: logs a warning on failure instead of throwing.
     */
   private def codesignAdHoc(file: File, log: sbt.util.Logger): Unit = {
-    val proc = new ProcessBuilder("codesign", "--force", "--sign", "-", file.getAbsolutePath)
-      .redirectErrorStream(true)
-      .start()
+    val proc   = new ProcessBuilder("codesign", "--force", "--sign", "-", file.getAbsolutePath).redirectErrorStream(true).start()
     val output = new String(proc.getInputStream.readAllBytes())
     val exit   = proc.waitFor()
     if (exit != 0) log.warn(s"[release] Ad-hoc signing failed for ${file.getName}: $output")
@@ -497,22 +486,22 @@ object JvmPackaging {
 
   /** Assemble a distribution package for a single platform. Returns the archive file. */
   private def assemblePlatform(
-      platform: Platform,
-      appName: String,
-      mainClass: String,
-      appJar: File,
-      deps: Seq[File],
-      nativeLibDirs: Seq[File],
-      crossNativeLibDir: Option[File],
-      jlinkedRuntime: File,
-      roastBinary: File,
-      vmArgs: Seq[String],
-      useZgc: Boolean,
-      runOnFirstThread: Boolean,
-      macOsBundleId: String,
-      macOsIcon: Option[File],
-      distDir: File,
-      log: sbt.util.Logger
+    platform:          Platform,
+    appName:           String,
+    mainClass:         String,
+    appJar:            File,
+    deps:              Seq[File],
+    nativeLibDirs:     Seq[File],
+    crossNativeLibDir: Option[File],
+    jlinkedRuntime:    File,
+    roastBinary:       File,
+    vmArgs:            Seq[String],
+    useZgc:            Boolean,
+    runOnFirstThread:  Boolean,
+    macOsBundleId:     String,
+    macOsIcon:         Option[File],
+    distDir:           File,
+    log:               sbt.util.Logger
   ): File = {
     val isMac       = platform.isMac
     val isWindows   = platform.isWindows
@@ -591,7 +580,7 @@ object JvmPackaging {
       val nativeDir = launcherDir / "native"
       IO.createDirectory(nativeDir)
       for {
-        dir  <- effectiveNativeLibDirs if dir.exists()
+        dir <- effectiveNativeLibDirs if dir.exists()
         file <- IO.listFiles(dir) if NativeLibExts.exists(file.getName.endsWith)
       } IO.copyFile(file, nativeDir / file.getName)
     }
@@ -610,14 +599,12 @@ object JvmPackaging {
     if (hostIsMac && (isMac || !isWindows)) {
       val nativeDir = launcherDir / "native"
       if (nativeDir.exists()) {
-        IO.listFiles(nativeDir)
-          .filter(_.getName.endsWith(".dylib"))
-          .foreach(f => codesignAdHoc(f, log))
+        IO.listFiles(nativeDir).filter(_.getName.endsWith(".dylib")).foreach(f => codesignAdHoc(f, log))
       }
       codesignAdHoc(launcher, log)
       if (isMac) {
         val appBundle = workDir / s"$appName.app"
-        val deepSign = new ProcessBuilder(
+        val deepSign  = new ProcessBuilder(
           "codesign",
           "--force",
           "--deep",
@@ -646,10 +633,8 @@ object JvmPackaging {
     val parentDir = sourceDir.getParentFile
     val dirName   = sourceDir.getName
     val cmd       = Seq("tar", "czf", archiveFile.getAbsolutePath, "-C", parentDir.getAbsolutePath, dirName)
-    val proc = new ProcessBuilder(cmd: _*)
-      .redirectErrorStream(true)
-      .start()
-    val exit = proc.waitFor()
+    val proc      = new ProcessBuilder(cmd: _*).redirectErrorStream(true).start()
+    val exit      = proc.waitFor()
     if (exit != 0) {
       val output = new String(proc.getInputStream.readAllBytes())
       throw new RuntimeException(s"tar archive creation failed (exit $exit): $output")
@@ -687,8 +672,8 @@ object JvmPackaging {
       sys.error(s"Platform '$platform' not in releaseTargets. Available: $available")
     }
 
-    val appName  = releaseAppName.value
-    val mainCls  = (Compile / mainClass).value.getOrElse {
+    val appName = releaseAppName.value
+    val mainCls = (Compile / mainClass).value.getOrElse {
       sys.error("releasePlatform requires Compile / mainClass to be set")
     }
     val cacheDir = releaseCacheDir.value
@@ -725,23 +710,23 @@ object JvmPackaging {
   }
 
   private val packageAllTask: Def.Initialize[Task[Seq[File]]] = Def.task {
-    val log      = streams.value.log
-    val targets  = releaseTargets.value
-    val appName  = releaseAppName.value
-    val mainCls  = (Compile / mainClass).value.getOrElse {
+    val log     = streams.value.log
+    val targets = releaseTargets.value
+    val appName = releaseAppName.value
+    val mainCls = (Compile / mainClass).value.getOrElse {
       sys.error("releaseAll requires Compile / mainClass to be set")
     }
-    val cacheDir = releaseCacheDir.value
-    val distDir  = target.value / "release-dist"
-    val appJar   = (Compile / packageBin).value
-    val deps     = (Compile / dependencyClasspathAsJars).value.map(_.data)
-    val modules  = releaseJlinkModules.value
-    val version  = releaseRoastVersion.value
-    val vmArgs   = releaseVmArgs.value
-    val useZgc   = releaseUseZgc.value
-    val rft      = releaseRunOnFirstThread.value
-    val bundleId = releaseMacOsBundleId.value
-    val icon     = releaseMacOsIcon.value
+    val cacheDir   = releaseCacheDir.value
+    val distDir    = target.value / "release-dist"
+    val appJar     = (Compile / packageBin).value
+    val deps       = (Compile / dependencyClasspathAsJars).value.map(_.data)
+    val modules    = releaseJlinkModules.value
+    val version    = releaseRoastVersion.value
+    val vmArgs     = releaseVmArgs.value
+    val useZgc     = releaseUseZgc.value
+    val rft        = releaseRunOnFirstThread.value
+    val bundleId   = releaseMacOsBundleId.value
+    val icon       = releaseMacOsIcon.value
     val nativeDirs = releaseNativeLibDirs.value
     val crossDir   = releaseCrossNativeLibDir.value
 
@@ -784,17 +769,17 @@ object JvmPackaging {
   // ── Distribution mode settings ────────────────────────────────────
 
   lazy val distSettings: Seq[Setting[_]] = Seq(
-    releaseTargets          := Map.empty,
-    releaseJlinkModules     := DefaultJlinkModules,
-    releaseRoastVersion     := DefaultRoastVersion,
-    releaseVmArgs           := Seq.empty,
-    releaseUseZgc           := true,
-    releaseMacOsBundleId    := s"com.app.${name.value}",
-    releaseMacOsIcon        := None,
-    releaseCacheDir         := Path.userHome / ".cache" / "sbt-multiarch-scala",
+    releaseTargets := Map.empty,
+    releaseJlinkModules := DefaultJlinkModules,
+    releaseRoastVersion := DefaultRoastVersion,
+    releaseVmArgs := Seq.empty,
+    releaseUseZgc := true,
+    releaseMacOsBundleId := s"com.app.${name.value}",
+    releaseMacOsIcon := None,
+    releaseCacheDir := Path.userHome / ".cache" / "sbt-multiarch-scala",
     releaseRunOnFirstThread := true,
     releaseCrossNativeLibDir := None,
-    releasePlatform         := packagePlatformTask.evaluated,
-    releaseAll              := packageAllTask.value
+    releasePlatform := packagePlatformTask.evaluated,
+    releaseAll := packageAllTask.value
   )
 }

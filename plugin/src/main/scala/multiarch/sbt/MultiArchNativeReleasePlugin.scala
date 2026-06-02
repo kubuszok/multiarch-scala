@@ -7,11 +7,10 @@ import scala.scalanative.sbtplugin.ScalaNativePlugin.autoImport._
 
 /** AutoPlugin for multi-architecture Scala Native release packaging.
   *
-  * Combines `NativeProviderPlugin` with zig-based cross-compilation support.
-  * When `zigCrossTarget` is set to a [[Platform]], this plugin overrides
-  * `nativeConfig` with zig cc/c++ wrapper scripts and the correct target triple.
+  * Combines `NativeProviderPlugin` with zig-based cross-compilation support. When `zigCrossTarget` is set to a [[Platform]], this plugin overrides `nativeConfig` with zig cc/c++ wrapper scripts and
+  * the correct target triple.
   *
-  * === Usage ===
+  * ===Usage===
   * {{{
   * // In build.sbt
   * lazy val myApp = (projectMatrix in file("my-app"))
@@ -39,20 +38,16 @@ object MultiArchNativeReleasePlugin extends AutoPlugin {
 
   override def projectSettings: Seq[Setting[_]] = Seq(
     zigCrossTarget := None,
-    NativeExtractSettings.nativeLibPlatform := {
-      zigCrossTarget.value.getOrElse(Platform.host)
-    },
-    NativeProviderSettings.nativeProviderPlatform := {
-      zigCrossTarget.value.getOrElse(Platform.host)
-    },
+    NativeExtractSettings.nativeLibPlatform :=
+      zigCrossTarget.value.getOrElse(Platform.host),
+    NativeProviderSettings.nativeProviderPlatform :=
+      zigCrossTarget.value.getOrElse(Platform.host),
     nativeConfig := {
       val c = nativeConfig.value
       zigCrossTarget.value match {
         case Some(platform) =>
           val wrapperDir = target.value / "zig-wrappers"
-          c.withClang(ZigCross.clangWrapper(platform, wrapperDir))
-            .withClangPP(ZigCross.clangPPWrapper(platform, wrapperDir))
-            .withTargetTriple(Some(platform.scalaNativeTarget))
+          c.withClang(ZigCross.clangWrapper(platform, wrapperDir)).withClangPP(ZigCross.clangPPWrapper(platform, wrapperDir)).withTargetTriple(Some(platform.scalaNativeTarget))
         case None => c
       }
     }

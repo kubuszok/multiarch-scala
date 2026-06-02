@@ -2,14 +2,13 @@ package multiarch.core
 
 /** Supported build target platform.
   *
-  * Each case encodes the platform classifier (used in JAR names, archive names, cache paths),
-  * the Rust/Scala Native target triple, and OS-specific properties.
+  * Each case encodes the platform classifier (used in JAR names, archive names, cache paths), the Rust/Scala Native target triple, and OS-specific properties.
   */
 sealed abstract class Platform(
-    /** Classifier string used in file names and directory paths (e.g. `"linux-x86_64"`). */
-    val classifier: String,
-    /** Rust and Scala Native target triple (e.g. `"x86_64-unknown-linux-gnu"`). */
-    val rustTarget: String
+  /** Classifier string used in file names and directory paths (e.g. `"linux-x86_64"`). */
+  val classifier: String,
+  /** Rust and Scala Native target triple (e.g. `"x86_64-unknown-linux-gnu"`). */
+  val rustTarget: String
 ) {
 
   /** OS component of the classifier (e.g. `"linux"`, `"macos"`, `"windows"`, `"android"`). */
@@ -18,19 +17,19 @@ sealed abstract class Platform(
   /** Architecture component of the classifier (e.g. `"x86_64"`, `"aarch64"`, `"armv7"`). */
   def arch: String = classifier.split('-').last
 
-  def isMac: Boolean     = os == "macos"
+  def isMac:     Boolean = os == "macos"
   def isWindows: Boolean = os == "windows"
-  def isLinux: Boolean   = os == "linux"
+  def isLinux:   Boolean = os == "linux"
   def isAndroid: Boolean = os == "android"
   def isDesktop: Boolean = !isAndroid
 
   /** Scala Native target triple (identical to [[rustTarget]]). */
   def scalaNativeTarget: String = rustTarget
 
-  /** Zig cross-compilation target triple (e.g. `"aarch64-macos"` or `"x86_64-linux-gnu"`).
-    * Used as the `-target` argument for `zig cc` / `zig c++`.
+  /** Zig cross-compilation target triple (e.g. `"aarch64-macos"` or `"x86_64-linux-gnu"`). Used as the `-target` argument for `zig cc` / `zig c++`.
     *
-    * @throws UnsupportedOperationException for Android platforms (zig cross-compilation not supported)
+    * @throws UnsupportedOperationException
+    *   for Android platforms (zig cross-compilation not supported)
     */
   def zigTarget: String = {
     if (isAndroid) throw new UnsupportedOperationException(s"Zig cross-compilation is not supported for $classifier")
@@ -51,17 +50,17 @@ sealed abstract class Platform(
 
 object Platform {
   // Desktop platforms (6) — valid for Scala Native, JVM packaging, and JNI/Panama
-  case object LinuxX86_64    extends Platform("linux-x86_64", "x86_64-unknown-linux-gnu")
-  case object LinuxAarch64   extends Platform("linux-aarch64", "aarch64-unknown-linux-gnu")
-  case object MacosX86_64    extends Platform("macos-x86_64", "x86_64-apple-darwin")
-  case object MacosAarch64   extends Platform("macos-aarch64", "aarch64-apple-darwin")
-  case object WindowsX86_64  extends Platform("windows-x86_64", "x86_64-pc-windows-msvc")
+  case object LinuxX86_64 extends Platform("linux-x86_64", "x86_64-unknown-linux-gnu")
+  case object LinuxAarch64 extends Platform("linux-aarch64", "aarch64-unknown-linux-gnu")
+  case object MacosX86_64 extends Platform("macos-x86_64", "x86_64-apple-darwin")
+  case object MacosAarch64 extends Platform("macos-aarch64", "aarch64-apple-darwin")
+  case object WindowsX86_64 extends Platform("windows-x86_64", "x86_64-pc-windows-msvc")
   case object WindowsAarch64 extends Platform("windows-aarch64", "aarch64-pc-windows-msvc")
 
   // Android platforms (3) — valid for JNI/Panama only
   case object AndroidAarch64 extends Platform("android-aarch64", "aarch64-linux-android")
-  case object AndroidArmV7   extends Platform("android-armv7", "armv7-linux-androideabi")
-  case object AndroidX86_64  extends Platform("android-x86_64", "x86_64-linux-android")
+  case object AndroidArmV7 extends Platform("android-armv7", "armv7-linux-androideabi")
+  case object AndroidX86_64 extends Platform("android-x86_64", "x86_64-linux-android")
 
   /** All six supported desktop platforms. */
   val desktop: Seq[Platform] = Seq(
@@ -98,26 +97,25 @@ object Platform {
       case _: ClassNotFoundException => false
     }
     val osName = sys.props("os.name").toLowerCase
-    val os =
+    val os     =
       if (isAndroidRuntime) "android"
       else if (osName.contains("linux")) "linux"
       else if (osName.contains("mac")) "macos"
       else if (osName.contains("win")) "windows"
       else throw new RuntimeException(s"Unsupported OS: ${sys.props("os.name")}")
     val arch = sys.props("os.arch") match {
-      case "amd64" | "x86_64"                => "x86_64"
-      case "aarch64" | "arm64"               => "aarch64"
-      case "armv7l" | "armeabi-v7a" | "arm"  => "armv7"
-      case a => throw new RuntimeException(s"Unsupported arch: $a")
+      case "amd64" | "x86_64"               => "x86_64"
+      case "aarch64" | "arm64"              => "aarch64"
+      case "armv7l" | "armeabi-v7a" | "arm" => "armv7"
+      case a                                => throw new RuntimeException(s"Unsupported arch: $a")
     }
     fromClassifier(s"$os-$arch")
   }
 
   /** Resolve a platform from its classifier string (e.g. `"macos-aarch64"`).
-    * @throws RuntimeException if the classifier is not recognized
+    * @throws RuntimeException
+    *   if the classifier is not recognized
     */
   def fromClassifier(s: String): Platform =
-    all
-      .find(_.classifier == s)
-      .getOrElse(throw new RuntimeException(s"Unknown platform: $s"))
+    all.find(_.classifier == s).getOrElse(throw new RuntimeException(s"Unknown platform: $s"))
 }

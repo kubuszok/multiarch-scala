@@ -2,8 +2,7 @@ package multiarch.core
 
 /** Minimal JSON codec for [[ProviderManifest]].
   *
-  * Hand-rolled to avoid external dependencies in the sbt plugin classpath.
-  * Only handles the fixed schema of `*-provider.json` files.
+  * Hand-rolled to avoid external dependencies in the sbt plugin classpath. Only handles the fixed schema of `*-provider.json` files.
   */
 object ProviderManifestCodec {
 
@@ -11,10 +10,10 @@ object ProviderManifestCodec {
 
   /** Parse a `*-provider.json` string into a [[ProviderManifest]]. */
   def parse(json: String): ProviderManifest = {
-    val root = JsonParser.parseObject(json)
+    val root          = JsonParser.parseObject(json)
     val schemaVersion = root.getOrElse("provider-schema-version", "0.1.0").toString
     val providerName  = root.getOrElse("provider-name", "unnamed").toString
-    val configs = root.get("configs") match {
+    val configs       = root.get("configs") match {
       case Some(arr: Seq[_]) => arr.map(parseConfig)
       case _                 => Seq.empty
     }
@@ -45,7 +44,7 @@ object ProviderManifestCodec {
       case Some(arr: Seq[_]) =>
         arr.map {
           case group: Seq[_] => group.map(_.toString)
-          case other         => Seq(other.toString)
+          case other => Seq(other.toString)
         }
       case _ => Seq.empty
     }
@@ -87,9 +86,11 @@ object ProviderManifestCodec {
     val parts = new scala.collection.mutable.ArrayBuffer[String]
     config.binary.foreach(b => parts += s""""binary": ${jsonString(b)}""")
     if (config.stub) parts += """"stub": true"""
-    val groups = config.flagsGroups.map { group =>
-      group.map(jsonString).mkString("[", ", ", "]")
-    }.mkString("[", ", ", "]")
+    val groups = config.flagsGroups
+      .map { group =>
+        group.map(jsonString).mkString("[", ", ", "]")
+      }
+      .mkString("[", ", ", "]")
     parts += s""""flags-groups": $groups"""
     parts.mkString("{ ", ", ", " }")
   }
@@ -99,13 +100,13 @@ object ProviderManifestCodec {
     var i  = 0
     while (i < s.length) {
       s.charAt(i) match {
-        case '"'  => sb.append("\\\"")
-        case '\\' => sb.append("\\\\")
-        case '\n' => sb.append("\\n")
-        case '\r' => sb.append("\\r")
-        case '\t' => sb.append("\\t")
+        case '"'           => sb.append("\\\"")
+        case '\\'          => sb.append("\\\\")
+        case '\n'          => sb.append("\\n")
+        case '\r'          => sb.append("\\r")
+        case '\t'          => sb.append("\\t")
         case c if c < 0x20 => sb.append(f"\\u${c.toInt}%04x")
-        case c    => sb.append(c)
+        case c             => sb.append(c)
       }
       i += 1
     }
@@ -128,14 +129,14 @@ object ProviderManifestCodec {
       val p = skipWhitespace(s, pos)
       if (p >= s.length) throw new RuntimeException(s"Unexpected end of JSON at position $p")
       s.charAt(p) match {
-        case '"'  => parseString(s, p)
-        case '{'  => parseObj(s, p)
-        case '['  => parseArr(s, p)
-        case 't'  => parseLiteral(s, p, "true", true)
-        case 'f'  => parseLiteral(s, p, "false", false)
-        case 'n'  => parseLiteral(s, p, "null", null)
+        case '"'                        => parseString(s, p)
+        case '{'                        => parseObj(s, p)
+        case '['                        => parseArr(s, p)
+        case 't'                        => parseLiteral(s, p, "true", true)
+        case 'f'                        => parseLiteral(s, p, "false", false)
+        case 'n'                        => parseLiteral(s, p, "null", null)
         case c if c == '-' || c.isDigit => parseNumber(s, p)
-        case c    => throw new RuntimeException(s"Unexpected character '$c' at position $p")
+        case c                          => throw new RuntimeException(s"Unexpected character '$c' at position $p")
       }
     }
 
@@ -213,16 +214,17 @@ object ProviderManifestCodec {
       while (p < s.length && s.charAt(p).isDigit) p += 1
       var isDouble = false
       if (p < s.length && s.charAt(p) == '.') { isDouble = true; p += 1; while (p < s.length && s.charAt(p).isDigit) p += 1 }
-      if (p < s.length && (s.charAt(p) == 'e' || s.charAt(p) == 'E')) { isDouble = true; p += 1; if (p < s.length && (s.charAt(p) == '+' || s.charAt(p) == '-')) p += 1; while (p < s.length && s.charAt(p).isDigit) p += 1 }
+      if (p < s.length && (s.charAt(p) == 'e' || s.charAt(p) == 'E')) {
+        isDouble = true; p += 1; if (p < s.length && (s.charAt(p) == '+' || s.charAt(p) == '-')) p += 1; while (p < s.length && s.charAt(p).isDigit) p += 1
+      }
       val numStr = s.substring(pos, p)
       if (isDouble) (numStr.toDouble, p)
       else (numStr.toLong, p)
     }
 
-    private def parseLiteral(s: String, pos: Int, literal: String, value: Any): (Any, Int) = {
+    private def parseLiteral(s: String, pos: Int, literal: String, value: Any): (Any, Int) =
       if (s.startsWith(literal, pos)) (value, pos + literal.length)
       else throw new RuntimeException(s"Expected '$literal' at position $pos")
-    }
 
     private def skipWhitespace(s: String, pos: Int): Int = {
       var p = pos

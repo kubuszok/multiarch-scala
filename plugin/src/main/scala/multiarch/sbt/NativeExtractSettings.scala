@@ -9,8 +9,7 @@ import java.nio.file.Files
 
 /** sbt task/setting keys for native library extraction from classifier JARs.
   *
-  * Thin wrapper around [[multiarch.core.NativeExtract]] — the pure logic lives in the
-  * `multiarch-core` module.
+  * Thin wrapper around [[multiarch.core.NativeExtract]] — the pure logic lives in the `multiarch-core` module.
   */
 object NativeExtractSettings {
 
@@ -37,8 +36,8 @@ object NativeExtractSettings {
   // ── Logger adapter ────────────────────────────────────────────────
 
   private def wrapLogger(sbtLog: sbt.util.Logger): NativeExtract.Logger = new NativeExtract.Logger {
-    def info(msg: String): Unit  = sbtLog.info(msg)
-    def warn(msg: String): Unit  = sbtLog.warn(msg)
+    def info(msg:  String): Unit = sbtLog.info(msg)
+    def warn(msg:  String): Unit = sbtLog.warn(msg)
     def error(msg: String): Unit = sbtLog.error(msg)
   }
 
@@ -50,7 +49,7 @@ object NativeExtractSettings {
   // ── Settings ──────────────────────────────────────────────────────
 
   lazy val settings: Seq[Setting[_]] = Seq(
-    nativeLibPlatform  := Platform.host,
+    nativeLibPlatform := Platform.host,
     nativeLibSourceDir := None,
     nativeLibExtract := {
       val log      = streams.value.log

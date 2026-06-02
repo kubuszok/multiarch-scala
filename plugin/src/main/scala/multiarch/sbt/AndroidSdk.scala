@@ -13,8 +13,7 @@ import java.nio.file.Files
   *   2. `ANDROID_SDK_ROOT` environment variable (deprecated but still common)
   *   3. The `cacheDir` argument (typically set via [[AndroidPlugin.autoImport.androidSdkCacheDir]])
   *
-  * When no SDK is found, [[ensureSdk]] downloads Android command-line tools and
-  * installs the minimum platform + build-tools needed for compilation.
+  * When no SDK is found, [[ensureSdk]] downloads Android command-line tools and installs the minimum platform + build-tools needed for compilation.
   */
 object AndroidSdk {
 
@@ -39,21 +38,24 @@ object AndroidSdk {
     *   2. `ANDROID_SDK_ROOT` environment variable
     *   3. The supplied `cacheDir` (caller-configured via setting key)
     *
-    * @param cacheDir directory where the SDK is (or will be) downloaded
+    * @param cacheDir
+    *   directory where the SDK is (or will be) downloaded
     */
   def findSdkRoot(cacheDir: File): Option[File] =
-    sys.env.get("ANDROID_HOME").map(new File(_)).filter(_.isDirectory)
+    sys.env
+      .get("ANDROID_HOME")
+      .map(new File(_))
+      .filter(_.isDirectory)
       .orElse(sys.env.get("ANDROID_SDK_ROOT").map(new File(_)).filter(_.isDirectory))
       .orElse(if (cacheDir.isDirectory) Some(cacheDir) else None)
 
   /** Resolves the SDK root, downloading to `cacheDir` if necessary. */
-  def ensureSdk(cacheDir: File, log: sbt.util.Logger): File = {
+  def ensureSdk(cacheDir: File, log: sbt.util.Logger): File =
     findSdkRoot(cacheDir).getOrElse {
       log.info(s"No Android SDK found. Downloading to $cacheDir ...")
       downloadSdk(cacheDir, log)
       cacheDir
     }
-  }
 
   // ── SDK Paths ───────────────────────────────────────────────────────
 
@@ -76,10 +78,8 @@ object AndroidSdk {
 
   /** Path to the R8 JAR (shared with d8 in build-tools/lib/d8.jar).
     *
-    * R8 is Android's code shrinker, optimizer, and DEX compiler. It shares a JAR
-    * with d8 but provides a more robust bytecode pipeline — particularly for lambda
-    * desugaring of Scala 3 bytecode that d8 mishandles (VerifyError: wide register
-    * index out of range).
+    * R8 is Android's code shrinker, optimizer, and DEX compiler. It shares a JAR with d8 but provides a more robust bytecode pipeline — particularly for lambda desugaring of Scala 3 bytecode that d8
+    * mishandles (VerifyError: wide register index out of range).
     *
     * Invoked as: `java -cp <r8Jar> com.android.tools.r8.R8 [options]`
     */
@@ -142,7 +142,7 @@ object AndroidSdk {
       case n if n.contains("linux") => "linux"
       case n if n.contains("mac")   => "mac"
       case n if n.contains("win")   => "win"
-      case n => throw new RuntimeException(s"Unsupported OS for Android SDK download: $n")
+      case n                        => throw new RuntimeException(s"Unsupported OS for Android SDK download: $n")
     }
     // Latest command-line tools (version 16.0)
     s"https://dl.google.com/android/repository/commandlinetools-$os-11076708_latest.zip"
@@ -173,7 +173,7 @@ object AndroidSdk {
         while (entries.hasMoreElements) {
           val entry = entries.nextElement()
           // Strip "cmdline-tools/" prefix from the zip entries
-          val name  = entry.getName.stripPrefix("cmdline-tools/")
+          val name = entry.getName.stripPrefix("cmdline-tools/")
           if (name.nonEmpty) {
             val dest = cmdlineDir.resolve(name)
             if (entry.isDirectory) {
@@ -203,9 +203,7 @@ object AndroidSdk {
         s"platforms;$platformVersion",
         s"build-tools;$buildToolsVersion"
       )
-      val proc = new ProcessBuilder(args: _*)
-        .redirectErrorStream(true)
-        .start()
+      val proc = new ProcessBuilder(args: _*).redirectErrorStream(true).start()
       // Auto-accept licenses
       val out = proc.getOutputStream
       // Send 'y' multiple times for license acceptance
@@ -221,8 +219,7 @@ object AndroidSdk {
       }
 
       log.info(s"Android SDK installed at $targetDir")
-    } finally {
+    } finally
       Files.deleteIfExists(tmpZip)
-    }
   }
 }

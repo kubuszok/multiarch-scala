@@ -5,15 +5,13 @@ import sbt.Keys._
 
 /** Generic Android build plugin — not tied to any specific project.
   *
-  * Provides Android SDK management (auto-download), APK build pipeline
-  * (DEX → aapt2 link → sign → install), and automatic discovery of
-  * `src/main/scala-android/` sources when the SDK is available.
+  * Provides Android SDK management (auto-download), APK build pipeline (DEX → aapt2 link → sign → install), and automatic discovery of `src/main/scala-android/` sources when the SDK is available.
   *
   * Build pipeline: `androidDex` → `androidPackage` → `androidSign` → `androidInstall`.
   *
   * Requires `AndroidManifest.xml` in `src/main/resources/` at task execution time.
   *
-  * === Usage ===
+  * ===Usage===
   * {{{
   * lazy val app = (project in file("android-app"))
   *   .enablePlugins(AndroidPlugin)

@@ -7,8 +7,7 @@ import sbt.Keys._
 
 /** sbt task/setting keys for native provider manifest discovery and flag merging.
   *
-  * Thin wrapper around [[multiarch.core.NativeExtract]] — the pure logic lives in the
-  * `multiarch-core` module.
+  * Thin wrapper around [[multiarch.core.NativeExtract]] — the pure logic lives in the `multiarch-core` module.
   */
 object NativeProviderSettings {
 
@@ -42,8 +41,8 @@ object NativeProviderSettings {
   // ── Logger adapter ────────────────────────────────────────────────
 
   private def wrapLogger(sbtLog: sbt.util.Logger): NativeExtract.Logger = new NativeExtract.Logger {
-    def info(msg: String): Unit  = sbtLog.info(msg)
-    def warn(msg: String): Unit  = sbtLog.warn(msg)
+    def info(msg:  String): Unit = sbtLog.info(msg)
+    def warn(msg:  String): Unit = sbtLog.warn(msg)
     def error(msg: String): Unit = sbtLog.error(msg)
   }
 
@@ -51,8 +50,8 @@ object NativeProviderSettings {
 
   lazy val settings: Seq[Setting[_]] = Seq(
     nativeProviderPlatform := Platform.host,
-    nativeProviderLibDir   := None,
-    nativeProviderTypes    := Seq(ProviderType.ScalaNative),
+    nativeProviderLibDir := None,
+    nativeProviderTypes := Seq(ProviderType.ScalaNative),
     discoverManifests := {
       val log     = streams.value.log
       val cp      = (Compile / dependencyClasspathAsJars).value.map(_.data)

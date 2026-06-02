@@ -72,7 +72,7 @@ lazy val core = project
     name := "multiarch-core",
     crossScalaVersions := Seq("2.12.21", "2.13.18", "3.3.7"),
     scalaVersion := "2.12.21",
-    libraryDependencies += "org.scalameta" %% "munit" % "1.1.0" % Test
+    libraryDependencies += "org.scalameta" %% "munit" % "1.1.1" % Test
   )
 
 // ── Plugin module ─────────────────────────────────────────────────────

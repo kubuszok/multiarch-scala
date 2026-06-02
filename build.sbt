@@ -72,7 +72,7 @@ lazy val core = project
     name := "multiarch-core",
     crossScalaVersions := Seq("2.12.21", "2.13.18", "3.3.7"),
     scalaVersion := "2.12.21",
-    libraryDependencies += "org.scalameta" %% "munit" % "1.1.0" % Test
+    libraryDependencies += "org.scalameta" %% "munit" % "1.1.1" % Test
   )
 
 // ── Plugin module ─────────────────────────────────────────────────────
@@ -86,7 +86,7 @@ lazy val plugin = project
     name := "sbt-multiarch-scala",
     projectType := ProjectType.JarOnly,
     addSbtPlugin("org.scala-native" % "sbt-scala-native" % "0.5.10" % Provided),
-    addSbtPlugin("com.eed3si9n"     % "sbt-projectmatrix" % "0.11.0" % Provided)
+    addSbtPlugin("com.eed3si9n" % "sbt-projectmatrix" % "0.11.0" % Provided)
   )
 
 // ── Curl native library provider ──────────────────────────────────────
@@ -95,9 +95,9 @@ lazy val snProviderCurl = project
   .in(file("sn-provider-curl"))
   .settings(publishSettings *)
   .settings(
-    name               := "sn-provider-curl",
-    autoScalaLibrary   := false,
-    crossPaths         := false,
+    name := "sn-provider-curl",
+    autoScalaLibrary := false,
+    crossPaths := false,
     Compile / packageSrc / publishArtifact := false,
     Compile / packageBin / mappings ++= {
       val nativesDir = baseDirectory.value / "natives"

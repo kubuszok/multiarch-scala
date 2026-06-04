@@ -85,7 +85,7 @@ lazy val plugin = project
   .settings(
     name := "sbt-multiarch-scala",
     projectType := ProjectType.JarOnly,
-    addSbtPlugin("org.scala-native" % "sbt-scala-native" % "0.5.10" % Provided),
+    addSbtPlugin("org.scala-native" % "sbt-scala-native" % "0.5.12" % Provided),
     addSbtPlugin("com.eed3si9n" % "sbt-projectmatrix" % "0.11.0" % Provided)
   )
 

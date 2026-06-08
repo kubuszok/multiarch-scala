@@ -63,7 +63,7 @@ jobs:
       - name: Build and publish locally
         run: sbt snProviderCurl/publishLocal
       - name: Upload curl provider artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: curl-provider-ivy
           path: ~/.ivy2/local/com.kubuszok/sn-provider-curl/

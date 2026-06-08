@@ -93,7 +93,7 @@ jobs:
       - name: Publish plugin and core locally
         run: sbt +core/publishLocal +plugin/publishLocal
       - name: Download curl provider artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: curl-provider-ivy
           path: ~/.ivy2/local/com.kubuszok/sn-provider-curl/

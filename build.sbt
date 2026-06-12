@@ -70,7 +70,7 @@ lazy val core = project
   .settings(publishSettings *)
   .settings(
     name := "multiarch-core",
-    crossScalaVersions := Seq("2.12.21", "2.13.18", "3.3.7"),
+    crossScalaVersions := Seq("2.12.21", "2.13.18", "3.3.8"),
     scalaVersion := "2.12.21",
     libraryDependencies += "org.scalameta" %% "munit" % "1.3.3" % Test
   )
@@ -119,7 +119,7 @@ lazy val `panama-api` = project
   .settings(publishSettings *)
   .settings(
     name := "multiarch-panama-api",
-    scalaVersion := "3.3.7",
+    scalaVersion := "3.3.8",
     scalacOptions ++= Seq("-release", "17"),
     Compile / unmanagedSourceDirectories += baseDirectory.value / "src" / "main" / "scala-android",
     Compile / unmanagedJars ++= {
@@ -135,5 +135,5 @@ lazy val `panama-jdk` = project
   .settings(publishSettings *)
   .settings(
     name := "multiarch-panama-jdk",
-    scalaVersion := "3.3.7"
+    scalaVersion := "3.3.8"
   )

@@ -72,6 +72,13 @@ lazy val core = project
     name := "multiarch-core",
     crossScalaVersions := Seq("2.12.21", "2.13.18", "3.3.8"),
     scalaVersion := "2.12.21",
+    // JDK 26+ future-proofing: 3.3.8 (a JVM-only target here) enables the new
+    // lazy-vals encoding. Guarded to 3.3.8 only; never on 2.13 or other versions.
+    // -Yfuture-lazy-vals requires an explicit -java-output-version >= 9.
+    scalacOptions ++= {
+      if (scalaVersion.value == "3.3.8") Seq("-Yfuture-lazy-vals", "-java-output-version", "17")
+      else Seq.empty
+    },
     libraryDependencies += "org.scalameta" %% "munit" % "1.3.3" % Test
   )
 
@@ -141,6 +148,10 @@ lazy val `panama-api` = project
     name := "multiarch-panama-api",
     scalaVersion := "3.3.8",
     scalacOptions ++= Seq("-release", "17"),
+    // JDK 26+ future-proofing: enable the new lazy-vals encoding on 3.3.8 (JVM-only).
+    scalacOptions ++= {
+      if (scalaVersion.value == "3.3.8") Seq("-Yfuture-lazy-vals") else Seq.empty
+    },
     Compile / unmanagedSourceDirectories += baseDirectory.value / "src" / "main" / "scala-android",
     Compile / unmanagedJars ++= {
       val cacheDir = streams.value.cacheDirectory / "panama-port-deps"
@@ -155,5 +166,11 @@ lazy val `panama-jdk` = project
   .settings(publishSettings *)
   .settings(
     name := "multiarch-panama-jdk",
-    scalaVersion := "3.3.8"
+    scalaVersion := "3.3.8",
+    // JDK 26+ future-proofing: enable the new lazy-vals encoding on 3.3.8 (JVM-only).
+    // -Yfuture-lazy-vals requires an explicit -java-output-version >= 9.
+    scalacOptions ++= {
+      if (scalaVersion.value == "3.3.8") Seq("-Yfuture-lazy-vals", "-java-output-version", "17")
+      else Seq.empty
+    }
   )

@@ -1,5 +1,7 @@
 package multiarch.sbt
 
+import multiarch.core.Platform
+
 import sbt._
 import sbt.Keys._
 
@@ -48,12 +50,12 @@ object NativeProviderPlugin extends AutoPlugin {
       // Sync the provider platform with the extraction platform
       NativeProviderSettings.nativeProviderPlatform := NativeExtractSettings.nativeLibPlatform.value,
       // Point the provider lib dir at the extraction output (triggers extraction)
-      NativeProviderSettings.nativeProviderLibDir := {
+      NativeProviderSettings.nativeProviderLibDir := Compat.uncached {
         val extractedDir = NativeExtractSettings.nativeLibExtract.value
         if (extractedDir.exists()) Some(extractedDir) else None
       },
       // Auto-wire nativeConfig with extracted lib dir + merged manifest flags + rpath
-      nativeConfig := {
+      nativeConfig := Compat.uncached {
         val c        = nativeConfig.value
         val libDir   = NativeExtractSettings.nativeLibExtract.value
         val merged   = NativeProviderSettings.mergedLinkerFlags.value
@@ -70,12 +72,13 @@ object NativeProviderPlugin extends AutoPlugin {
       // Windows: copy DLLs next to the linked executable (no rpath on Windows).
       // The PE loader searches the executable's directory first, so placing DLLs
       // there is the equivalent of -rpath @executable_path on macOS.
-      Compile / nativeLink := {
+      Compile / nativeLink := Compat.uncached {
         val linked   = (Compile / nativeLink).value
+        val conv     = fileConverter.value
         val platform = NativeExtractSettings.nativeLibPlatform.value
         if (platform.isWindows) {
           val libDir = NativeExtractSettings.nativeLibExtract.value
-          val exeDir = linked.toPath.getParent
+          val exeDir = Compat.toFile(linked)(conv).toPath.getParent
           val log    = streams.value.log
           if (libDir.exists()) {
             val dlls = libDir.listFiles().filter(_.getName.endsWith(".dll"))

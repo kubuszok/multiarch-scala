@@ -45,28 +45,31 @@ object AndroidBuild {
     androidR8Rules := None,
 
     // SDK resolution — task, only runs when android tasks are invoked
-    androidSdkRoot := {
+    androidSdkRoot := Compat.uncached {
       val cacheDir = androidSdkCacheDir.value
       val log      = streams.value.log
       AndroidSdk.ensureSdk(cacheDir, log)
     },
 
     // Add android.jar to compile classpath IF present (non-blocking for sbt load).
-    Compile / unmanagedJars ++= {
+    Compile / unmanagedJars ++= Compat.uncached {
       val cacheDir = androidSdkCacheDir.value
-      AndroidSdk.findSdkRoot(cacheDir).toSeq.flatMap { sdkRoot =>
+      val conv     = fileConverter.value
+      val jars     = AndroidSdk.findSdkRoot(cacheDir).toSeq.flatMap { sdkRoot =>
         val jar = AndroidSdk.androidJar(sdkRoot)
-        if (jar.exists()) Seq(Attributed.blank(jar)) else Seq.empty
+        if (jar.exists()) Seq(jar) else Seq.empty
       }
+      Compat.blankJars(jars)(conv)
     },
 
     // PanamaPort runtime dependencies — needed for Android's Panama FFM backport.
     // These are AARs on Maven Central; AndroidDeps downloads, extracts classes.jar,
     // and adds them to the classpath so d8 includes them in the APK.
-    Compile / unmanagedJars ++= {
+    Compile / unmanagedJars ++= Compat.uncached {
       val cacheDir = streams.value.cacheDirectory / "panama-port-deps"
       val log      = streams.value.log
-      AndroidDeps.resolvePanamaPort(cacheDir, log).map(Attributed.blank)
+      val conv     = fileConverter.value
+      Compat.blankJars(AndroidDeps.resolvePanamaPort(cacheDir, log))(conv)
     },
 
     // Fork for JVM tests
@@ -80,7 +83,7 @@ object AndroidBuild {
     //
     // By default, R8 runs in desugaring-only mode (--no-tree-shaking --no-minification).
     // Set `androidR8Rules` to a ProGuard rules file to enable shrinking/optimization.
-    androidDex := {
+    androidDex := Compat.uncached {
       val log    = streams.value.log
       val sdk    = androidSdkRoot.value
       val target = crossTarget.value / "android"
@@ -91,7 +94,7 @@ object AndroidBuild {
       val _ = (Compile / compile).value
 
       // Collect all class files from this project + dependencies
-      val cp        = (Compile / fullClasspath).value.map(_.data)
+      val cp        = Compat.toFiles((Compile / fullClasspath).value)(fileConverter.value)
       val jars      = cp.filter(f => f.isFile && f.getName.endsWith(".jar"))
       val classDirs = cp.filter(_.isDirectory)
 
@@ -174,7 +177,7 @@ object AndroidBuild {
     },
 
     // ── APK packaging ─────────────────────────────────────────────────
-    androidPackage := {
+    androidPackage := Compat.uncached {
       val log    = streams.value.log
       val sdk    = androidSdkRoot.value
       val target = crossTarget.value / "android"
@@ -246,7 +249,7 @@ object AndroidBuild {
       val nativeLibsDir = (Compile / resourceDirectory).value / "lib"
       if (nativeLibsDir.isDirectory) {
         val basePath    = nativeLibsDir.toPath
-        val nativeFiles = (nativeLibsDir ** "*").get.filter(_.isFile).flatMap { f =>
+        val nativeFiles = (nativeLibsDir ** "*").get().filter(_.isFile).flatMap { f =>
           val rel = basePath.relativize(f.toPath).toString.replace('\\', '/')
           Seq((f, s"lib/$rel"))
         }
@@ -255,7 +258,7 @@ object AndroidBuild {
 
       // Extract native .so files from dependency JARs (e.g. providers that bundle native/android-*/*.so)
       // and add them as lib/<abi>/*.so in the APK for Android's native lib loader.
-      val cp                  = (Compile / fullClasspath).value.map(_.data)
+      val cp                  = Compat.toFiles((Compile / fullClasspath).value)(fileConverter.value)
       val extractedNativeLibs = extractNativeLibsFromJars(cp, target / "native-libs", log)
       if (extractedNativeLibs.nonEmpty) {
         addFilesToZipWithPaths(apkBase, extractedNativeLibs)
@@ -280,7 +283,7 @@ object AndroidBuild {
     },
 
     // ── APK signing ───────────────────────────────────────────────────
-    androidSign := {
+    androidSign := Compat.uncached {
       val log     = streams.value.log
       val sdk     = androidSdkRoot.value
       val target  = crossTarget.value / "android"

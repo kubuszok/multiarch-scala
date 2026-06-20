@@ -1,5 +1,7 @@
 package multiarch.sbt
 
+import multiarch.core.Platform
+
 import sbt._
 
 /** AutoPlugin for multi-architecture JVM release packaging.

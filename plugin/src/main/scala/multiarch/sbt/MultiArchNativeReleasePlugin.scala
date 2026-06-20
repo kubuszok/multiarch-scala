@@ -1,5 +1,7 @@
 package multiarch.sbt
 
+import multiarch.core.Platform
+
 import sbt._
 import sbt.Keys._
 
@@ -42,7 +44,9 @@ object MultiArchNativeReleasePlugin extends AutoPlugin {
       zigCrossTarget.value.getOrElse(Platform.host),
     NativeProviderSettings.nativeProviderPlatform :=
       zigCrossTarget.value.getOrElse(Platform.host),
-    nativeConfig := {
+    // Captures the custom `Platform` enum into the task result; sbt 2.0 would try to
+    // hash it for caching, so opt out via Compat.uncached (identity on sbt 1.x).
+    nativeConfig := Compat.uncached {
       val c = nativeConfig.value
       zigCrossTarget.value match {
         case Some(platform) =>

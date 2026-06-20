@@ -55,10 +55,10 @@ lazy val root = project
       val extracted = Project.extract(state)
       val tags      = extracted.get(git.gitCurrentTags)
       if (tags.nonEmpty)
-        "+core/publishSigned" :: "plugin/publishSigned" :: "snProviderCurl/publishSigned" ::
+        "+core/publishSigned" :: "+plugin/publishSigned" :: "snProviderCurl/publishSigned" ::
           "panama-api/publishSigned" :: "panama-jdk/publishSigned" :: "sonaRelease" :: state
       else
-        "+core/publishSigned" :: "plugin/publishSigned" :: "snProviderCurl/publishSigned" ::
+        "+core/publishSigned" :: "+plugin/publishSigned" :: "snProviderCurl/publishSigned" ::
           "panama-api/publishSigned" :: "panama-jdk/publishSigned" :: state
     }
   )
@@ -85,8 +85,28 @@ lazy val plugin = project
   .settings(
     name := "sbt-multiarch-scala",
     projectType := ProjectType.JarOnly,
+    // Cross-build for sbt 1.x (Scala 2.12) and sbt 2.0 (Scala 3).
+    // sbt 2.0.0 is itself built against Scala 3.8.4, so the plugin must compile
+    // with 3.8.4 to read sbt's TASTy (3.7.2 cannot read 3.8.4 TASTy).
+    crossScalaVersions := Seq("3.8.4", "2.12.21"),
+    scalaVersion := "2.12.21",
+    (pluginCrossBuild / sbtVersion) := {
+      scalaBinaryVersion.value match {
+        case "2.12" => "1.12.12"
+        case _      => "2.0.0"
+      }
+    },
+    // sbt-scala-native HAS a sbt-2.0 (_sbt2_3) build, so keep it on both axes.
     addSbtPlugin("org.scala-native" % "sbt-scala-native" % "0.5.12" % Provided),
-    addSbtPlugin("com.eed3si9n" % "sbt-projectmatrix" % "0.11.0" % Provided)
+    // sbt-projectmatrix was merged INTO sbt 2.0 (no _sbt2_3 artifact), so add it
+    // only on the sbt-1.x (Scala 2.12) axis.
+    libraryDependencies ++= {
+      if (scalaBinaryVersion.value == "2.12") {
+        val sbtV   = (pluginCrossBuild / sbtBinaryVersion).value
+        val scalaV = (update / scalaBinaryVersion).value
+        Seq(Defaults.sbtPluginExtra("com.eed3si9n" % "sbt-projectmatrix" % "0.11.0", sbtV, scalaV) % Provided)
+      } else Seq.empty
+    }
   )
 
 // ── Curl native library provider ──────────────────────────────────────

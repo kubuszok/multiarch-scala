@@ -1,6 +1,6 @@
 package multiarch.sbt
 
-import multiarch.core.{ NativeExtract, ProviderManifest, ProviderType }
+import multiarch.core.{ NativeExtract, Platform, ProviderManifest, ProviderType }
 
 import sbt._
 import sbt.Keys._
@@ -50,16 +50,19 @@ object NativeProviderSettings {
 
   lazy val settings: Seq[Setting[_]] = Seq(
     nativeProviderPlatform := Platform.host,
-    nativeProviderLibDir := None,
+    // File-typed task result -> opt out of sbt 2.0 caching (identity on sbt 1.x).
+    nativeProviderLibDir := Compat.uncached(Option.empty[File]),
     nativeProviderTypes := Seq(ProviderType.ScalaNative),
-    discoverManifests := {
+    // Result captures custom ProviderType/ProviderManifest types -> opt out of caching.
+    discoverManifests := Compat.uncached {
       val log     = streams.value.log
-      val cp      = (Compile / dependencyClasspathAsJars).value.map(_.data)
+      val cp      = Compat.toFiles((Compile / dependencyClasspathAsJars).value)(fileConverter.value)
       val resDirs = (Compile / resourceDirectories).value
       val types   = nativeProviderTypes.value
       NativeExtract.discoverManifests(cp, resDirs, types, wrapLogger(log))
     },
-    mergedLinkerFlags := {
+    // Captures custom-typed inputs (manifests, Platform) into the cache key -> opt out.
+    mergedLinkerFlags := Compat.uncached {
       val discovered = discoverManifests.value.map(_._2)
       val platform   = nativeProviderPlatform.value
       val libDirOpt  = nativeProviderLibDir.value

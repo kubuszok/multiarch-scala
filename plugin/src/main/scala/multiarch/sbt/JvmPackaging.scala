@@ -1,5 +1,7 @@
 package multiarch.sbt
 
+import multiarch.core.Platform
+
 import sbt._
 import sbt.Keys._
 import sbt.complete.DefaultParsers._
@@ -88,9 +90,10 @@ object JvmPackaging {
     // ── lib/ — application JAR + dependency JARs
     val libDir = outDir / "lib"
     IO.createDirectory(libDir)
-    val appJar = (Compile / packageBin).value
+    val conv   = fileConverter.value
+    val appJar = Compat.toFile((Compile / packageBin).value)(conv)
     IO.copyFile(appJar, libDir / appJar.getName)
-    val deps = (Compile / dependencyClasspathAsJars).value.map(_.data)
+    val deps = Compat.toFiles((Compile / dependencyClasspathAsJars).value)(conv)
     deps.foreach(jar => IO.copyFile(jar, libDir / jar.getName))
 
     // ── native/ — platform shared libraries
@@ -149,7 +152,8 @@ object JvmPackaging {
   lazy val jvmSettings: Seq[Setting[_]] = Seq(
     releaseAppName := name.value,
     releaseNativeLibDirs := Seq.empty,
-    releasePackage := packageJvm.value
+    // File-typed task result -> opt out of sbt 2.0 caching (identity on sbt 1.x).
+    releasePackage := Compat.uncached(packageJvm.value)
   )
 
   // ── Distribution mode implementation ──────────────────────────────
@@ -647,7 +651,7 @@ object JvmPackaging {
     val parentDir = sourceDir.getParentFile
     val out       = new java.util.zip.ZipOutputStream(new java.io.FileOutputStream(archiveFile))
     try {
-      val allFiles = (sourceDir ** AllPassFilter).get.filter(_.isFile)
+      val allFiles = (sourceDir ** AllPassFilter).get().filter(_.isFile)
       allFiles.foreach { file =>
         val relativePath = parentDir.toPath.relativize(file.toPath).toString
         val entry        = new java.util.zip.ZipEntry(relativePath)
@@ -681,8 +685,9 @@ object JvmPackaging {
 
     log.info(s"[release] Packaging $appName for $platform...")
 
-    val appJar  = (Compile / packageBin).value
-    val deps    = (Compile / dependencyClasspathAsJars).value.map(_.data)
+    val conv    = fileConverter.value
+    val appJar  = Compat.toFile((Compile / packageBin).value)(conv)
+    val deps    = Compat.toFiles((Compile / dependencyClasspathAsJars).value)(conv)
     val jdkRoot = resolveJdk(targets(platform), platform, cacheDir, log)
 
     val runtimeDir = distDir / s"runtime-$platform"
@@ -718,8 +723,9 @@ object JvmPackaging {
     }
     val cacheDir   = releaseCacheDir.value
     val distDir    = target.value / "release-dist"
-    val appJar     = (Compile / packageBin).value
-    val deps       = (Compile / dependencyClasspathAsJars).value.map(_.data)
+    val conv       = fileConverter.value
+    val appJar     = Compat.toFile((Compile / packageBin).value)(conv)
+    val deps       = Compat.toFiles((Compile / dependencyClasspathAsJars).value)(conv)
     val modules    = releaseJlinkModules.value
     val version    = releaseRoastVersion.value
     val vmArgs     = releaseVmArgs.value
@@ -780,6 +786,7 @@ object JvmPackaging {
     releaseRunOnFirstThread := true,
     releaseCrossNativeLibDir := None,
     releasePlatform := packagePlatformTask.evaluated,
-    releaseAll := packageAllTask.value
+    // Seq[File] task result -> opt out of sbt 2.0 caching (identity on sbt 1.x).
+    releaseAll := Compat.uncached(packageAllTask.value)
   )
 }

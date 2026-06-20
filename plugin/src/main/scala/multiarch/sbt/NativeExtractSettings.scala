@@ -1,6 +1,6 @@
 package multiarch.sbt
 
-import multiarch.core.NativeExtract
+import multiarch.core.{ NativeExtract, Platform }
 
 import sbt._
 import sbt.Keys._
@@ -51,12 +51,13 @@ object NativeExtractSettings {
   lazy val settings: Seq[Setting[_]] = Seq(
     nativeLibPlatform := Platform.host,
     nativeLibSourceDir := None,
-    nativeLibExtract := {
+    // File-typed task result -> opt out of sbt 2.0 caching (identity on sbt 1.x).
+    nativeLibExtract := Compat.uncached {
       val log      = streams.value.log
       val logger   = wrapLogger(log)
       val platform = nativeLibPlatform.value
       val outDir   = target.value / "native-libs" / platform.classifier
-      val cp       = (Compile / dependencyClasspathAsJars).value.map(_.data)
+      val cp       = Compat.toFiles((Compile / dependencyClasspathAsJars).value)(fileConverter.value)
 
       nativeLibSourceDir.value match {
         case Some(crossDir) =>

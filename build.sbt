@@ -78,13 +78,13 @@ lazy val core = project
   .settings(publishSettings *)
   .settings(
     name := "multiarch-core",
-    crossScalaVersions := Seq("2.12.21", "2.13.18", "3.3.8"),
+    crossScalaVersions := Seq("2.12.21", "2.13.18", "3.8.4"),
     scalaVersion := "2.12.21",
     // JDK 26+ future-proofing: 3.3.8 (a JVM-only target here) enables the new
     // lazy-vals encoding. Guarded to 3.3.8 only; never on 2.13 or other versions.
     // -Yfuture-lazy-vals requires an explicit -java-output-version >= 9.
     scalacOptions ++= {
-      if (scalaVersion.value == "3.3.8") Seq("-Yfuture-lazy-vals", "-java-output-version", "17")
+      if (scalaVersion.value == "3.8.4") Seq("-Yfuture-lazy-vals", "-java-output-version", "17")
       else Seq.empty
     },
     libraryDependencies += "org.scalameta" %% "munit" % "1.3.3" % Test
@@ -99,7 +99,7 @@ lazy val core = project
 // The JS axis here embeds this module's OWN test resources so the Scala.js test path resolves a
 // real embedded resource (proving the build-time generator end to end). Downstream consumers use
 // `MultiArchResourcesPlugin.embeddedResourcesSettings(...)` to embed their own resources.
-lazy val resourcesScalaVersions = Seq("2.13.18", "3.3.8")
+lazy val resourcesScalaVersions = Seq("2.13.18", "3.8.4")
 
 lazy val multiarchResources = (projectMatrix in file("multiarch-resources"))
   // JVM axis. JDK 26+ future-proofing: 3.3.8 enables the new lazy-vals encoding;
@@ -108,7 +108,7 @@ lazy val multiarchResources = (projectMatrix in file("multiarch-resources"))
     scalaVersions = resourcesScalaVersions,
     settings = Seq(
       scalacOptions ++= {
-        if (scalaVersion.value == "3.3.8") Seq("-Yfuture-lazy-vals", "-java-output-version", "17")
+        if (scalaVersion.value == "3.8.4") Seq("-Yfuture-lazy-vals", "-java-output-version", "17")
         else Seq.empty
       }
     )
@@ -217,11 +217,11 @@ lazy val `panama-api` = project
   .settings(publishSettings *)
   .settings(
     name := "multiarch-panama-api",
-    scalaVersion := "3.3.8",
+    scalaVersion := "3.8.4",
     scalacOptions ++= Seq("-release", "17"),
     // JDK 26+ future-proofing: enable the new lazy-vals encoding on 3.3.8 (JVM-only).
     scalacOptions ++= {
-      if (scalaVersion.value == "3.3.8") Seq("-Yfuture-lazy-vals") else Seq.empty
+      if (scalaVersion.value == "3.8.4") Seq("-Yfuture-lazy-vals") else Seq.empty
     },
     Compile / unmanagedSourceDirectories += baseDirectory.value / "src" / "main" / "scala-android",
     Compile / unmanagedJars ++= {
@@ -237,11 +237,11 @@ lazy val `panama-jdk` = project
   .settings(publishSettings *)
   .settings(
     name := "multiarch-panama-jdk",
-    scalaVersion := "3.3.8",
+    scalaVersion := "3.8.4",
     // JDK 26+ future-proofing: enable the new lazy-vals encoding on 3.3.8 (JVM-only).
     // -Yfuture-lazy-vals requires an explicit -java-output-version >= 9.
     scalacOptions ++= {
-      if (scalaVersion.value == "3.3.8") Seq("-Yfuture-lazy-vals", "-java-output-version", "17")
+      if (scalaVersion.value == "3.8.4") Seq("-Yfuture-lazy-vals", "-java-output-version", "17")
       else Seq.empty
     }
   )

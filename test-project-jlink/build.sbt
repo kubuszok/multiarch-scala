@@ -1,6 +1,6 @@
 import multiarch.sbt.{ MultiArchJvmReleasePlugin, Platform }
 
-ThisBuild / scalaVersion := "3.3.8"
+ThisBuild / scalaVersion := "3.8.4"
 
 // JDK download URLs for JLink distribution packaging (Azul Zulu 25)
 val jdkUrls: Map[Platform, String] = Map(

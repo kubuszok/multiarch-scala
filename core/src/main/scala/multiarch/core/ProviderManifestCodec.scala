@@ -17,7 +17,39 @@ object ProviderManifestCodec {
       case Some(arr: Seq[_]) => arr.map(parseConfig)
       case _                 => Seq.empty
     }
-    ProviderManifest(schemaVersion, providerName, configs)
+    val providerArtifact = root.get("provider-artifact") match {
+      case Some(s: String) => Some(s)
+      case _               => None
+    }
+    val providerVersion = root.get("provider-version") match {
+      case Some(s: String) => Some(s)
+      case _               => None
+    }
+    val bundles = root.get("bundles") match {
+      case Some(arr: Seq[_]) => arr.map(_.toString)
+      case _                 => Seq.empty
+    }
+    ProviderManifest(schemaVersion, providerName, configs, providerArtifact, providerVersion, bundles)
+  }
+
+  /** The manifest schema version produced by [[enrich]] and expected of v2 manifests. */
+  val SchemaVersionV2: String = "0.2.0"
+
+  /** Enrich a static template manifest with package-time metadata (artifact, version, bundles).
+    *
+    * Parses `templateJson`, sets the v2 fields (and forces `schemaVersion` to [[SchemaVersionV2]] — the enriched output is by definition a v2 manifest, even if the template still declares `0.1.x`),
+    * and re-serializes. Used by provider builds' `resourceGenerators` to produce the final `*-provider.json` from a versionless template.
+    */
+  def enrich(templateJson: String, artifact: String, version: String, bundles: Seq[String]): String = {
+    val base = parse(templateJson)
+    write(
+      base.copy(
+        schemaVersion = SchemaVersionV2,
+        providerArtifact = Some(artifact),
+        providerVersion = Some(version),
+        bundles = bundles
+      )
+    )
   }
 
   private def parseConfig(value: Any): ProviderConfig = {
@@ -59,6 +91,12 @@ object ProviderManifestCodec {
     sb.append("{\n")
     sb.append(s"""  "provider-schema-version": ${jsonString(manifest.schemaVersion)},\n""")
     sb.append(s"""  "provider-name": ${jsonString(manifest.providerName)},\n""")
+    manifest.providerArtifact.foreach(a => sb.append(s"""  "provider-artifact": ${jsonString(a)},\n"""))
+    manifest.providerVersion.foreach(v => sb.append(s"""  "provider-version": ${jsonString(v)},\n"""))
+    if (manifest.bundles.nonEmpty) {
+      val entries = manifest.bundles.map(jsonString).mkString("[", ", ", "]")
+      sb.append(s"""  "bundles": $entries,\n""")
+    }
     sb.append("""  "configs": [""")
     if (manifest.configs.nonEmpty) {
       sb.append("\n")

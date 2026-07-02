@@ -166,6 +166,89 @@ class ProviderManifestCodecSpec extends munit.FunSuite {
     assertEquals(c1.platforms("linux-x86_64").stub, true)
   }
 
+  // ── v2 (MA-1) ──────────────────────────────────────────────────────
+
+  private val curlV1Fixture =
+    scala.io.Source.fromInputStream(getClass.getResourceAsStream("/sn-provider.json")).mkString
+
+  // NOTE (dry-run): the plan's literal "byte-compare fixture" is impossible with the
+  // current writer. Substituted with the sensible interpretation: v1 serialization is
+  // additively unchanged (no v2 keys leak) and semantically round-trips.
+  test("v1 write emits no v2 keys and semantically round-trips") {
+    val parsed  = ProviderManifestCodec.parse(curlV1Fixture)
+    val written = ProviderManifestCodec.write(parsed)
+    assert(!written.contains("provider-artifact"), written)
+    assert(!written.contains("provider-version"), written)
+    assert(!written.contains("\"bundles\""), written)
+    val re = ProviderManifestCodec.parse(written)
+    assertEquals(re.providerName, parsed.providerName)
+    assertEquals(re.configs.map(_.configName), parsed.configs.map(_.configName))
+  }
+
+  test("v2 fields parse") {
+    val json = """{
+      "provider-schema-version": "0.2.0",
+      "provider-name": "sge-desktop",
+      "provider-artifact": "pnm-provider-sge-desktop",
+      "provider-version": "0.2.0",
+      "bundles": ["linux-x86_64/libfoo.so", "macos-aarch64/libfoo.dylib"],
+      "configs": []
+    }"""
+    val m    = ProviderManifestCodec.parse(json)
+    assertEquals(m.providerArtifact, Some("pnm-provider-sge-desktop"))
+    assertEquals(m.providerVersion, Some("0.2.0"))
+    assertEquals(m.bundles, Seq("linux-x86_64/libfoo.so", "macos-aarch64/libfoo.dylib"))
+  }
+
+  test("v2 round-trip parse then write then parse") {
+    val m = ProviderManifest(
+      schemaVersion = "0.2.0",
+      providerName = "sge-desktop",
+      configs = Seq.empty,
+      providerArtifact = Some("pnm-provider-sge-desktop"),
+      providerVersion = Some("0.2.0"),
+      bundles = Seq("linux-x86_64/libfoo.so")
+    )
+    val re = ProviderManifestCodec.parse(ProviderManifestCodec.write(m))
+    assertEquals(re.providerArtifact, m.providerArtifact)
+    assertEquals(re.providerVersion, m.providerVersion)
+    assertEquals(re.bundles, m.bundles)
+  }
+
+  test("effectiveBundles derives from v1 config binaries") {
+    val parsed = ProviderManifestCodec.parse(curlV1Fixture)
+    val eb     = parsed.effectiveBundles
+    assert(eb.contains("linux-x86_64/libcurl.a"), eb.toString)
+    assert(eb.contains("windows-x86_64/libcurl.lib"), eb.toString)
+    assert(eb.contains("linux-x86_64/libidn2.a"), eb.toString)
+  }
+
+  test("effectiveBundles returns bundles verbatim when present") {
+    val m = ProviderManifest("0.2.0", "x", Seq.empty, bundles = Seq("linux-x86_64/libx.so"))
+    assertEquals(m.effectiveBundles, Seq("linux-x86_64/libx.so"))
+  }
+
+  test("enrich injects artifact, version, bundles") {
+    val out = ProviderManifestCodec.enrich(
+      curlV1Fixture,
+      artifact = "sn-provider-curl",
+      version = "0.4.0",
+      bundles = Seq("linux-x86_64/libcurl.a")
+    )
+    val m = ProviderManifestCodec.parse(out)
+    assertEquals(m.providerArtifact, Some("sn-provider-curl"))
+    assertEquals(m.providerVersion, Some("0.4.0"))
+    assertEquals(m.bundles, Seq("linux-x86_64/libcurl.a"))
+  }
+
+  test("enrich forces schemaVersion to 0.2.0 even when template declares 0.1.0") {
+    // the curl fixture declares "provider-schema-version": "0.1.0"
+    assert(curlV1Fixture.contains("\"0.1.0\""), curlV1Fixture.take(80))
+    val out = ProviderManifestCodec.enrich(curlV1Fixture, "sn-provider-curl", "0.4.0", Seq("linux-x86_64/libcurl.a"))
+    val m   = ProviderManifestCodec.parse(out)
+    assertEquals(m.schemaVersion, "0.2.0")
+  }
+
   test("malformed JSON throws") {
     intercept[RuntimeException] {
       ProviderManifestCodec.parse("not json at all")

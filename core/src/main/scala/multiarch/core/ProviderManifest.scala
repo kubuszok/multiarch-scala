@@ -7,8 +7,29 @@ final case class ProviderManifest(
   /** Human-readable name for logging and diagnostics (e.g. `"curl"`). */
   providerName: String,
   /** Native library configurations declared by this provider. */
-  configs: Seq[ProviderConfig]
-)
+  configs: Seq[ProviderConfig],
+  /** v2: the publishing artifact id (e.g. `"pnm-provider-sge-desktop"`). Injected at package time. */
+  providerArtifact: Option[String] = None,
+  /** v2: the resolved provider version (e.g. `"0.2.0"`). Injected at package time. */
+  providerVersion: Option[String] = None,
+  /** v2: every native file the JAR physically carries, as `"<classifier>/<file>"`. */
+  bundles: Seq[String] = Seq.empty
+) {
+
+  /** The effective set of `"<classifier>/<file>"` bundle entries for collision detection.
+    *
+    * Returns [[bundles]] when non-empty (v2 manifests), otherwise derives entries as `"<classifier>/<binary>"` from every config platform entry that declares a `binary` (so collision detection also
+    * works for v1 manifests).
+    */
+  def effectiveBundles: Seq[String] =
+    if (bundles.nonEmpty) bundles
+    else
+      configs.flatMap { config =>
+        config.platforms.toSeq.collect {
+          case (classifier, plat) if plat.binary.isDefined => s"$classifier/${plat.binary.get}"
+        }
+      }.distinct
+}
 
 /** A single named configuration within a provider manifest.
   *

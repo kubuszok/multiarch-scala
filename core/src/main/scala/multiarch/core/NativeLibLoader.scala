@@ -10,7 +10,7 @@ import java.util.concurrent.ConcurrentHashMap
   *   1. Manifest-v2 classpath index: `jni-provider.json` / `pnm-provider.json` manifests declaring artifact+version resolve `native/<artifact>/<version>/<platform>/<mapped-name>`; more than one
   *      distinct provider bundling the same file throws `UnsatisfiedLinkError` with a collision report
   *   1. Legacy classpath resource at `native/<platform>/<mapped-name>` (providers predating manifest v2; logs a deprecation line once per library). The legacy read path will not be removed before
-  *      multiarch 1.0.0 and not before 2027-01 (see `docs/plans/2026-07-native-flags-and-collisions.md` §3.5).
+  *      multiarch 1.0.0 and not before 2027-01 (see `docs/plans/2026-07-native-flags-and-collisions.md` §3.5; tracked as github issue #27).
   *   1. Android class loader (when running on Android/ART)
   *   1. Throws `UnsatisfiedLinkError` with a diagnostic listing every searched location
   *

@@ -433,6 +433,14 @@ Provider repos call it from a `validateProviders` task (issue SNP-3/TSP-2);
   invoked directly from the shell (task not reachable), expose an alias in the fixture's
   build (`addCommandAlias("checkCollisions", "test-project-collision/discoverManifests")`).
 
+  > **(GATE-FIX 2026-07-03, post-implementation)** The `test-project-*` fixtures are
+  > SEPARATE sbt builds with their own `project/` — they are not subprojects of the root
+  > build, so `sbt test-project-collision/discoverManifests` invoked from the repo root
+  > does not parse. This applies equally to the §7 gate commands (G3/G4/G5): run each
+  > fixture command from the fixture directory with `-Dplugin.version=<pinned>` exactly
+  > as CI does. The workflow MUST `publishLocal` core+plugin under that exact pinned
+  > version FIRST (audit note CI-1: otherwise the fixture resolves a stale/absent plugin).
+
 ---
 
 ## 3. Workstream C — version-namespaced resource layout
@@ -475,6 +483,11 @@ Unit tests (core): fake classpath via a `URLClassLoader` over a temp dir tree �
 v2-only jar resolves; legacy-only resolves with fallback; v2 wins over legacy when both
 present; two v2 owners throw; java.library.path still wins over both.
 
+> **(GATE-FIX 2026-07-03, post-implementation)** munit `intercept` cannot catch
+> `UnsatisfiedLinkError`: it is a fatal `LinkageError` outside `NonFatal`, so the
+> interceptor lets it propagate. The loader tests use a manual try/catch helper to
+> assert on the thrown error instead.
+
 ### 3.3 Plugin/consumer readers that must learn the dual layout
 
 | Site | Change |
@@ -484,6 +497,11 @@ present; two v2 owners throw; java.library.path still wins over both.
 | `plugin/AndroidBuild.scala:432` | accept `native/android-<arch>/...so` AND `native/<artifact>/<version>/android-<arch>/...so` |
 | `plugin/JvmPackaging.scala` (~583) | no change — it copies from extracted DIRS, not from jar paths |
 | `sge/sge-build/.../NativeProviderValidation.scala` | path check `native/$classifier/$binary` → compute from manifest v2 (or delegate to `NativeExtract.validateBundles`); covenant re-baseline required (§0.3) |
+
+> **(GATE-FIX 2026-07-03, post-implementation)** Core code iterating `JarFile` entries
+> must materialize strictly (`.toVector`): on Scala 2.12, `Iterator.toSeq` produces a
+> lazy `Stream` that outlives the closed `JarFile` and fails later with
+> "zip file closed" when forced.
 
 ### 3.4 Migration steps per provider repo (identical recipe, two repos)
 
@@ -521,6 +539,11 @@ present; two v2 owners throw; java.library.path still wins over both.
   months), AND only after both provider repos + all kubuszok consumers publish v2.
   Record this as a tracking issue in multiarch-scala at implementation time; the
   loader's scaladoc names the issue number as the revisit trigger.
+
+  > **(GATE-FIX 2026-07-03, post-implementation)** This tracking-issue step was executed
+  > post-merge as GitHub issue #27 (legacy-layout removal, not before 1.0.0 / 2027-01);
+  > the loader scaladoc cites it. Also note the audit follow-up issue #28 (v1 collision
+  > identity keyed by jar basename).
 
 ---
 
@@ -618,6 +641,12 @@ From `multiarch-scala/build.sbt` (verified):
   `snProviderCurl/publishSigned`, `panama-api/publishSigned`, `panama-jdk/publishSigned`,
   then `sonaRelease` when tagged). Version comes from git tags (sbt-git) — release =
   push tag `v0.4.0`.
+
+  > **(GATE-FIX 2026-07-03, post-implementation)** sbt-git assigns a fresh timestamp
+  > version per `++` reload, so a multi-module `publishLocal` in one session yields
+  > mismatched versions across modules. Pin via the `plugin.version` system property
+  > (the fixtures' `plugins.sbt` reads `sys.props("plugin.version")`) so core, plugin,
+  > and fixture all agree on one exact version.
 - Consumers pin `0.3.0` in FOUR places total: `sge/project/plugins.sbt` (plugin),
   `sge/project/Versions.scala:31` (libs), `ssg/project/plugins.sbt`,
   `ssg/project/Versions.scala:31`; provider repos in `project/plugins.sbt` each.

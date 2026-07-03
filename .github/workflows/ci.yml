@@ -107,6 +107,15 @@ jobs:
         working-directory: test-project-native
         run: sbt -Dplugin.version=${{ steps.version.outputs.version }} nativeLink
       # TODO: cross-compile for all 6 platforms with zig and upload artifacts
+      - name: Collision fixture (build MUST fail with the collision message)
+        working-directory: test-project-collision
+        run: |
+          if sbt -Dplugin.version=${{ steps.version.outputs.version }} checkCollisions > /tmp/collision.log 2>&1; then
+            echo "EXPECTED FAILURE but build succeeded"
+            cat /tmp/collision.log
+            exit 1
+          fi
+          grep -q "Native library collision for platform" /tmp/collision.log
 
   # ── Run Scala Native binaries on real platforms ─────────────────────
   # integration-native-run:

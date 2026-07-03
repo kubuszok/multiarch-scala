@@ -199,17 +199,46 @@ lazy val snProviderCurl = project
     autoScalaLibrary := false,
     crossPaths := false,
     Compile / packageSrc / publishArtifact := false,
+    // Versioned v2 resource layout: native/<artifact>/<version>/<classifier>/<file>.
     Compile / packageBin / mappings ++= {
       val nativesDir = baseDirectory.value / "natives"
+      val artifact   = moduleName.value
+      val ver        = version.value
       if (nativesDir.exists()) {
         Platform.desktop.flatMap { p =>
           val platDir = nativesDir / p.classifier
           if (platDir.exists())
-            sbt.IO.listFiles(platDir).filter(_.isFile).map(f => f -> s"native/${p.classifier}/${f.getName}").toSeq
+            sbt.IO.listFiles(platDir).filter(_.isFile).map(f => f -> s"native/$artifact/$ver/${p.classifier}/${f.getName}").toSeq
           else Seq.empty
         }
       } else Seq.empty
-    }
+    },
+    // Manifest v2 generation: enrich the static template with artifact, version, and the
+    // bundles list computed from the SAME natives/<classifier> listing that feeds
+    // packageBin/mappings (single source of truth — cannot drift).
+    Compile / resourceGenerators += Def.task {
+      val log        = streams.value.log
+      val template   = sbt.IO.read(baseDirectory.value / "manifest-template.json")
+      val nativesDir = baseDirectory.value / "natives"
+      val listed: Seq[String] = Platform.desktop.flatMap { p =>
+        val platDir = nativesDir / p.classifier
+        if (platDir.exists())
+          sbt.IO.listFiles(platDir).filter(_.isFile).map(f => s"${p.classifier}/${f.getName}").toSeq
+        else Seq.empty
+      }
+      val bundles =
+        if (listed.nonEmpty) listed.sorted
+        else {
+          log.warn(
+            "[sn-provider-curl] natives/ is empty — emitting the template's declared binaries as bundles " +
+              "(run sn-provider-curl/scripts/download-curl.sh for the real thing)"
+          )
+          multiarch.core.ProviderManifestCodec.parse(template).effectiveBundles.sorted
+        }
+      val out = (Compile / resourceManaged).value / "sn-provider.json"
+      sbt.IO.write(out, multiarch.core.ProviderManifestCodec.enrich(template, moduleName.value, version.value, bundles))
+      Seq(out)
+    }.taskValue
   )
 
 // ── Panama FFM abstraction (Scala 3 only) ────────────────────────────

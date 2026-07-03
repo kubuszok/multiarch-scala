@@ -1,0 +1,16 @@
+{
+  "provider-schema-version": "0.2.0",
+  "provider-name": "collide-a",
+  "provider-artifact": "fixture-provider-a",
+  "provider-version": "1.0.0",
+  "bundles": ["linux-x86_64/libcollide.a"],
+  "configs": [
+    {
+      "config-name": "collide",
+      "linux-x86_64": {
+        "binary": "libcollide.a",
+        "flags-groups": []
+      }
+    }
+  ]
+}

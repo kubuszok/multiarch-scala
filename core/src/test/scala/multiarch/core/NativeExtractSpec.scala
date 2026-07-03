@@ -315,6 +315,85 @@ class NativeExtractSpec extends munit.FunSuite {
     }
   }
 
+  // ── Dual-layout JAR readers (v2 + legacy) ──────────────────────────
+
+  private def withTempJar(entries: Seq[(String, String)])(f: File => Unit): Unit = {
+    val jarFile = Files.createTempFile("native-extract-spec-", ".jar").toFile
+    val out     = new java.util.jar.JarOutputStream(new java.io.FileOutputStream(jarFile))
+    try
+      entries.foreach { case (name, content) =>
+        out.putNextEntry(new java.util.jar.JarEntry(name))
+        out.write(content.getBytes("UTF-8"))
+        out.closeEntry()
+      }
+    finally out.close()
+    try f(jarFile)
+    finally { jarFile.delete(); () }
+  }
+
+  private def withTempOutDir(f: File => Unit): Unit = {
+    val outDir = Files.createTempDirectory("native-extract-out-").toFile
+    try f(outDir)
+    finally {
+      val files = outDir.listFiles()
+      if (files != null) files.foreach(_.delete())
+      outDir.delete()
+      ()
+    }
+  }
+
+  test("findNativeLibJars matches v2-layout-only jars") {
+    withTempJar(Seq("native/provider-a/1.0.0/linux-x86_64/libfoo.a" -> "A")) { jar =>
+      assertEquals(NativeExtract.findNativeLibJars(Seq(jar), Platform.LinuxX86_64), Seq(jar))
+      assertEquals(NativeExtract.findNativeLibJars(Seq(jar), Platform.MacosAarch64), Seq.empty[File])
+    }
+  }
+
+  test("nativeLibEntries lists v2 and platform-dir entries for the platform, skipping non-libs") {
+    withTempJar(
+      Seq(
+        "native/provider-a/1.0.0/linux-x86_64/libv2.a" -> "V2",
+        "native/provider-a/1.0.0/macos-aarch64/libv2.a" -> "V2-MAC",
+        "native/linux-x86_64/liblegacy.a" -> "LEGACY",
+        "native/linux-x86_64/notalib.txt" -> "TXT"
+      )
+    ) { jar =>
+      val entries = NativeExtract.nativeLibEntries(jar, Platform.LinuxX86_64)
+      assertEquals(
+        entries.toSet,
+        Set(
+          "native/provider-a/1.0.0/linux-x86_64/libv2.a" -> "libv2.a",
+          "native/linux-x86_64/liblegacy.a" -> "liblegacy.a"
+        )
+      )
+    }
+  }
+
+  test("extractFromJar extracts v2-layout entries for the requested platform only") {
+    withTempJar(
+      Seq(
+        "native/provider-a/1.0.0/linux-x86_64/libv2.a" -> "V2 LINUX",
+        "native/provider-a/1.0.0/macos-aarch64/libv2.a" -> "V2 MAC"
+      )
+    ) { jar =>
+      withTempOutDir { outDir =>
+        NativeExtract.extractFromJar(jar, Platform.LinuxX86_64, outDir, testLogger)
+        val extracted = new File(outDir, "libv2.a")
+        assert(extracted.exists(), s"expected libv2.a in ${outDir.listFiles().mkString(", ")}")
+        assertEquals(new String(Files.readAllBytes(extracted.toPath), "UTF-8"), "V2 LINUX")
+      }
+    }
+  }
+
+  test("extractFromJar keeps legacy flat-jar handling") {
+    withTempJar(Seq("native/libflat.a" -> "FLAT")) { jar =>
+      withTempOutDir { outDir =>
+        NativeExtract.extractFromJar(jar, Platform.LinuxX86_64, outDir, testLogger)
+        assert(new File(outDir, "libflat.a").exists())
+      }
+    }
+  }
+
   // ── Empty manifests ─────────────────────────────────────────────────
 
   test("mergeFlags with empty manifests returns empty") {

@@ -411,7 +411,8 @@ object AndroidBuild {
 
   /** Extract native .so files from dependency JARs.
     *
-    * Scans all JAR files on the classpath for entries matching `native/android-<arch>/<name>.so`, extracts them to a temp directory, and returns (file, archivePath) pairs for APK inclusion.
+    * Scans all JAR files on the classpath for entries matching the legacy layout `native/android-<arch>/<name>.so` or the versioned v2 layout `native/<artifact>/<version>/android-<arch>/<name>.so`,
+    * extracts them to a temp directory, and returns (file, archivePath) pairs for APK inclusion.
     */
   private def extractNativeLibsFromJars(
     cp:         Seq[File],
@@ -421,6 +422,7 @@ object AndroidBuild {
     IO.createDirectory(extractDir)
     val jars   = cp.filter(f => f.isFile && f.getName.endsWith(".jar"))
     val result = scala.collection.mutable.Buffer[(File, String)]()
+    val seen   = scala.collection.mutable.Set.empty[String]
 
     jars.foreach { jar =>
       val zipIn = new java.util.zip.ZipFile(jar)
@@ -428,21 +430,27 @@ object AndroidBuild {
         import scala.jdk.CollectionConverters._
         zipIn.entries().asScala.foreach { entry =>
           val name = entry.getName
-          // Match native/android-<classifier>/<libname>.so
-          if (name.startsWith("native/android-") && name.endsWith(".so") && !entry.isDirectory) {
+          if (name.startsWith("native/") && name.endsWith(".so") && !entry.isDirectory) {
             val parts = name.split('/')
-            if (parts.length == 3) {
-              val classifier = parts(1)
-              val libName    = parts(2)
+            // Legacy: native/android-<classifier>/<libname>.so
+            // v2:     native/<artifact>/<version>/android-<classifier>/<libname>.so
+            val classifierAndLib: Option[(String, String)] =
+              if (parts.length == 3 && parts(1).startsWith("android-")) Some((parts(1), parts(2)))
+              else if (parts.length == 5 && parts(3).startsWith("android-")) Some((parts(3), parts(4)))
+              else None
+            classifierAndLib.foreach { case (classifier, libName) =>
               nativeClassifierToAbi.get(classifier).foreach { abi =>
-                val outFile = extractDir / abi / libName
-                IO.createDirectory(outFile.getParentFile)
-                val is = zipIn.getInputStream(entry)
-                try IO.transfer(is, outFile)
-                finally is.close()
                 val archivePath = s"lib/$abi/$libName"
-                result += ((outFile, archivePath))
-                log.info(s"  Extracted native lib: $archivePath")
+                // A jar carrying both layouts of the same lib must contribute it only once.
+                if (seen.add(archivePath)) {
+                  val outFile = extractDir / abi / libName
+                  IO.createDirectory(outFile.getParentFile)
+                  val is = zipIn.getInputStream(entry)
+                  try IO.transfer(is, outFile)
+                  finally is.close()
+                  result += ((outFile, archivePath))
+                  log.info(s"  Extracted native lib: $archivePath")
+                }
               }
             }
           }

@@ -46,6 +46,35 @@ object NativeExtractSettings {
   private def localPlatformDir(crossDir: File, platform: Platform): File =
     crossDir / platform.classifier
 
+  // ── Content-based collision gate ──────────────────────────────────
+
+  /** Fail when two different JARs would extract the same target file name for this platform.
+    *
+    * Content-based counterpart of the manifest-declared collision check — catches providers whose `bundles` declaration lies or is absent entirely.
+    */
+  private def failOnContentCollisions(jars: Seq[File], platform: Platform): Unit = {
+    val owners: Seq[(String, (File, String))] = jars.flatMap { jar =>
+      NativeExtract.nativeLibEntries(jar, platform).map { case (entryName, targetFileName) =>
+        targetFileName -> (jar -> entryName)
+      }
+    }
+    val collisions = owners.groupBy(_._1).toSeq.sortBy(_._1).flatMap { case (targetFileName, group) =>
+      val jarOwners = group.map(_._2).groupBy(_._1).toSeq.sortBy(_._1.getName)
+      if (jarOwners.size > 1) {
+        Some(
+          NativeExtract.BundleCollision(
+            platform.classifier,
+            targetFileName,
+            jarOwners.map { case (jar, entries) => (jar.getName, jar.getAbsolutePath, entries.head._2) }
+          )
+        )
+      } else None
+    }
+    if (collisions.nonEmpty) {
+      sys.error(collisions.map(NativeExtract.renderCollision).mkString("\n"))
+    }
+  }
+
   // ── Settings ──────────────────────────────────────────────────────
 
   lazy val settings: Seq[Setting[_]] = Seq(
@@ -78,6 +107,7 @@ object NativeExtractSettings {
           } else {
             val jars = NativeExtract.findNativeLibJars(cp, platform)
             if (jars.nonEmpty) {
+              failOnContentCollisions(jars, platform)
               log.info(s"[native-provider] Extracting native libs from ${jars.size} JAR(s)...")
               IO.delete(outDir)
               jars.foreach(jar => NativeExtract.extractFromJar(jar, platform, outDir, logger))

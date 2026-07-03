@@ -108,6 +108,30 @@ NativeLibLoader.loadConfigs(ProviderType.Panama, Set("mylib"))
 val path = NativeLibLoader.load("mylib")
 ```
 
+## Collision detection
+
+Two providers bundling the same native library file for the same platform would silently
+shadow each other (classpath order decides). The plugin and loader detect this and fail
+with a prescriptive message at four sites: Scala Native manifest discovery, native lib
+extraction, an opt-in JVM consumer check, and the runtime loader.
+
+JVM projects that do not enable `NativeProviderPlugin` (e.g. apps loading Panama/JNI
+providers at runtime) can opt in to the build-time check:
+
+```scala
+import multiarch.sbt.NativeProviderSettings
+
+// define the nativeProviderCheckCollisions task for this project
+myProject.settings(NativeProviderSettings.collisionCheckSettings *)
+
+// and gate compilation on it
+Compile / compile := (Compile / compile).dependsOn(NativeProviderSettings.nativeProviderCheckCollisions).value
+```
+
+The check discovers every `sn-provider.json` / `jni-provider.json` / `pnm-provider.json`
+on `Compile / dependencyClasspathAsJars` (plus project resources) and fails when two
+distinct providers declare the same `<platform>/<file>` bundle entry.
+
 ## How to create your own provider
 
 ### Step 1: Cross-compile your native code

@@ -333,11 +333,18 @@ object NativeExtract {
 
   // ── JAR extraction ────────────────────────────────────────────────
 
+  /** Whether a JAR entry name is a versioned-layout (v2) native lib entry for the given platform: `native/<artifact>/<version>/<classifier>/<file>`. */
+  private def isV2PlatformEntry(name: String, classifier: String): Boolean = {
+    val segments = name.split('/')
+    segments.length == 5 && segments(0) == "native" && segments(3) == classifier && segments(4).nonEmpty && isNativeLib(segments(4))
+  }
+
   /** Find JARs on the classpath that contain native libraries for the given platform.
     *
-    * Matches JARs that have either:
-    *   - `native/<platform-classifier>/` entries (fat JAR with all platforms)
-    *   - `native/` entries with native file extensions (flat single-platform JAR)
+    * Matches JARs that have any of:
+    *   - `native/<artifact>/<version>/<platform-classifier>/` entries (versioned v2 layout)
+    *   - `native/<platform-classifier>/` entries (legacy fat JAR with all platforms)
+    *   - `native/` entries with native file extensions (legacy flat single-platform JAR)
     */
   def findNativeLibJars(jars: Seq[File], platform: Platform): Seq[File] = {
     val platformPrefix = s"native/${platform.classifier}/"
@@ -349,48 +356,68 @@ object NativeExtract {
           entries.exists { e =>
             val name = e.getName
             (name.startsWith(platformPrefix) && isNativeLib(name)) ||
-            (name.startsWith("native/") && !name.stripPrefix("native/").contains("/") && isNativeLib(name))
+            (name.startsWith("native/") && !name.stripPrefix("native/").contains("/") && isNativeLib(name)) ||
+            isV2PlatformEntry(name, platform.classifier)
           }
         } finally jf.close()
       }
     }
   }
 
+  /** Select the native-lib entries of an open JAR that extraction would write for `platform`, as (entry name, target file name) pairs.
+    *
+    * Layout priority per entry: versioned v2 (`native/<artifact>/<version>/<classifier>/<file>`), then legacy platform dirs (`native/<classifier>/<file>`), then legacy flat (`native/<file>` — only
+    * when the JAR has no platform dirs at all).
+    */
+  private def selectPlatformEntries(jarFile: JarFile, platform: Platform): Seq[(java.util.jar.JarEntry, String)] = {
+    val platformPrefix = s"native/${platform.classifier}/"
+    // .toVector (strict): 2.12's Iterator.toSeq is a lazy Stream that would outlive the open JarFile
+    val allEntries      = new JarEntryIterator(jarFile).filterNot(_.isDirectory).toVector
+    val hasPlatformDirs = allEntries.exists(e => Platform.all.exists(p => e.getName.startsWith(s"native/${p.classifier}/")))
+    allEntries.flatMap { entry =>
+      val name        = entry.getName
+      val fileNameOpt =
+        if (isV2PlatformEntry(name, platform.classifier)) {
+          Some(name.split('/').last)
+        } else if (hasPlatformDirs) {
+          if (name.startsWith(platformPrefix)) Some(name.stripPrefix(platformPrefix))
+          else None
+        } else {
+          if (name.startsWith("native/")) Some(name.stripPrefix("native/"))
+          else None
+        }
+      fileNameOpt.collect {
+        case fileName if fileName.nonEmpty && !fileName.contains("/") && isNativeLib(fileName) => entry -> fileName
+      }
+    }
+  }
+
+  /** List the (JAR entry path, target file name) pairs that [[extractFromJar]] would write for the given platform. Used for content-based collision detection before extraction. */
+  def nativeLibEntries(jar: File, platform: Platform): Seq[(String, String)] = {
+    val jarFile = new JarFile(jar)
+    try selectPlatformEntries(jarFile, platform).map { case (entry, fileName) => entry.getName -> fileName }
+    finally jarFile.close()
+  }
+
   /** Extract native libraries from a JAR file for the given platform.
     *
-    * Supports two JAR layouts:
+    * Supports three JAR layouts:
+    *   - '''Versioned (v2)''': `native/<artifact>/<version>/<platform-classifier>/<file>.a`
     *   - '''Fat JAR''': `native/<platform-classifier>/<file>.a` — all platforms bundled
     *   - '''Flat JAR''': `native/<file>.a` — single-platform JAR
     */
   def extractFromJar(jar: File, platform: Platform, outDir: File, logger: Logger): Unit = {
     outDir.mkdirs()
-    val jarFile        = new JarFile(jar)
-    val platformPrefix = s"native/${platform.classifier}/"
-    try {
-      val entries         = new JarEntryIterator(jarFile)
-      val allEntries      = entries.filterNot(_.isDirectory).toSeq
-      val hasPlatformDirs = allEntries.exists(e => Platform.all.exists(p => e.getName.startsWith(s"native/${p.classifier}/")))
-      allEntries.foreach { entry =>
-        val name        = entry.getName
-        val fileNameOpt =
-          if (hasPlatformDirs) {
-            if (name.startsWith(platformPrefix)) Some(name.stripPrefix(platformPrefix))
-            else None
-          } else {
-            if (name.startsWith("native/")) Some(name.stripPrefix("native/"))
-            else None
-          }
-        fileNameOpt.foreach { fileName =>
-          if (fileName.nonEmpty && !fileName.contains("/") && isNativeLib(fileName)) {
-            val target = new File(outDir, fileName)
-            val is     = jarFile.getInputStream(entry)
-            try Files.copy(is, target.toPath, StandardCopyOption.REPLACE_EXISTING)
-            finally is.close()
-            logger.info(s"[native-provider] Extracted: $fileName")
-          }
-        }
+    val jarFile = new JarFile(jar)
+    try
+      selectPlatformEntries(jarFile, platform).foreach { case (entry, fileName) =>
+        val target = new File(outDir, fileName)
+        val is     = jarFile.getInputStream(entry)
+        try Files.copy(is, target.toPath, StandardCopyOption.REPLACE_EXISTING)
+        finally is.close()
+        logger.info(s"[native-provider] Extracted: $fileName")
       }
-    } finally jarFile.close()
+    finally jarFile.close()
   }
 
   // ── Windows .lib alias creation ──────────────────────────────────

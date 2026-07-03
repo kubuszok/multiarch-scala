@@ -38,6 +38,11 @@ object NativeProviderSettings {
     "Provider types to discover on the classpath."
   )
 
+  /** Standalone collision check for projects that do NOT enable NativeProviderPlugin (e.g. JVM consumers of Panama/JNI providers). */
+  val nativeProviderCheckCollisions = taskKey[Unit](
+    "Fails the build when two classpath providers bundle the same native library file for the same platform"
+  )
+
   // ── Logger adapter ────────────────────────────────────────────────
 
   private def wrapLogger(sbtLog: sbt.util.Logger): NativeExtract.Logger = new NativeExtract.Logger {
@@ -55,11 +60,13 @@ object NativeProviderSettings {
     nativeProviderTypes := Seq(ProviderType.ScalaNative),
     // Result captures custom ProviderType/ProviderManifest types -> opt out of caching.
     discoverManifests := Compat.uncached {
-      val log     = streams.value.log
-      val cp      = Compat.toFiles((Compile / dependencyClasspathAsJars).value)(fileConverter.value)
-      val resDirs = (Compile / resourceDirectories).value
-      val types   = nativeProviderTypes.value
-      NativeExtract.discoverManifests(cp, resDirs, types, wrapLogger(log))
+      val log        = streams.value.log
+      val cp         = Compat.toFiles((Compile / dependencyClasspathAsJars).value)(fileConverter.value)
+      val resDirs    = (Compile / resourceDirectories).value
+      val types      = nativeProviderTypes.value
+      val discovered = NativeExtract.discoverManifests(cp, resDirs, types, wrapLogger(log))
+      failOnCollisions(discovered)
+      discovered
     },
     // Captures custom-typed inputs (manifests, Platform) into the cache key -> opt out.
     mergedLinkerFlags := Compat.uncached {
@@ -70,4 +77,29 @@ object NativeProviderSettings {
       NativeExtract.mergeFlags(discovered, platform, libDirOpt, wrapLogger(log))
     }
   )
+
+  /** Build-time collision check for projects that do NOT enable [[NativeProviderPlugin]] (e.g. JVM consumers loading Panama/JNI providers at runtime).
+    *
+    * Discovers manifests of ALL provider types from `Compile / dependencyClasspathAsJars` + project resources and fails with the prescriptive collision message when two providers bundle the same
+    * library file for the same platform. Consumers typically wire it as:
+    * {{{
+    * Compile / compile := (Compile / compile).dependsOn(NativeProviderSettings.nativeProviderCheckCollisions).value
+    * }}}
+    */
+  lazy val collisionCheckSettings: Seq[Setting[_]] = Seq(
+    nativeProviderCheckCollisions := Compat.uncached {
+      val log     = streams.value.log
+      val cp      = Compat.toFiles((Compile / dependencyClasspathAsJars).value)(fileConverter.value)
+      val resDirs = (Compile / resourceDirectories).value
+      failOnCollisions(NativeExtract.discoverManifests(cp, resDirs, ProviderType.all, wrapLogger(log)))
+    }
+  )
+
+  /** Shared collision gate: renders every detected collision and aborts the task. */
+  private def failOnCollisions(discovered: Seq[(ProviderType, ProviderManifest, String)]): Unit = {
+    val collisions = NativeExtract.detectBundleCollisions(discovered)
+    if (collisions.nonEmpty) {
+      sys.error(collisions.map(NativeExtract.renderCollision).mkString("\n"))
+    }
+  }
 }

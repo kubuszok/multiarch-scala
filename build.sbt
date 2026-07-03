@@ -78,6 +78,8 @@ lazy val core = project
   .settings(publishSettings *)
   .settings(
     name := "multiarch-core",
+    // Future module-path adopters can scope --enable-native-access to this module (plan §4.3).
+    Compile / packageBin / packageOptions += Package.ManifestAttributes("Automatic-Module-Name" -> "multiarch.core"),
     crossScalaVersions := Seq("2.12.21", "2.13.18", "3.3.8"),
     scalaVersion := "2.12.21",
     // JDK 26+ future-proofing: 3.3.8 (a JVM-only target here) enables the new
@@ -217,6 +219,8 @@ lazy val `panama-api` = project
   .settings(publishSettings *)
   .settings(
     name := "multiarch-panama-api",
+    // Future module-path adopters can scope --enable-native-access to this module (plan §4.3).
+    Compile / packageBin / packageOptions += Package.ManifestAttributes("Automatic-Module-Name" -> "multiarch.panama.api"),
     scalaVersion := "3.3.8",
     scalacOptions ++= Seq("-release", "17"),
     // JDK 26+ future-proofing: enable the new lazy-vals encoding on 3.3.8 (JVM-only).
@@ -237,6 +241,8 @@ lazy val `panama-jdk` = project
   .settings(publishSettings *)
   .settings(
     name := "multiarch-panama-jdk",
+    // Future module-path adopters can scope --enable-native-access to this module (plan §4.3).
+    Compile / packageBin / packageOptions += Package.ManifestAttributes("Automatic-Module-Name" -> "multiarch.panama.jdk"),
     scalaVersion := "3.3.8",
     // JDK 26+ future-proofing: enable the new lazy-vals encoding on 3.3.8 (JVM-only).
     // -Yfuture-lazy-vals requires an explicit -java-output-version >= 9.

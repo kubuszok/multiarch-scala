@@ -201,7 +201,7 @@ class NativeLibLoaderSpec extends munit.FunSuite {
     val dirB = Files.createTempDirectory("native-loader-multidir-b-")
     try {
       write(dirB, mapped(lib), "DIR B CONTENT") // only in the SECOND directory
-      withFixtureClassLoader(1) { (_, _) => () } { cl =>
+      withFixtureClassLoader(1)((_, _) => ()) { cl =>
         withLibraryPath(dirA.toString + File.pathSeparator + dirB.toString) {
           val path = NativeLibLoader.resolve(lib, classifier, cl, NativeLibLoader.buildV2Index(cl))
           assertEquals(path, dirB.resolve(mapped(lib)))

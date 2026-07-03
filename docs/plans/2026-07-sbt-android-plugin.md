@@ -98,7 +98,7 @@ this plan delivers:
 ### Sequencing constraint
 
 Land AFTER the companion R8 plan (`sge/docs/plans/2026-07-android-r8.md`) is merged,
-released (0.3.1), and green in sge CI **(GATE-FIX 2026-07-03, M3: strong form, unified with the AP-1 Depends column)**. Rationale: the R8 work rewrites `androidDex` and
+released (0.5.0 — COORD-FIX 2026-07-03; was 0.3.1, R8 plan now releases as 0.5.0), and green in sge CI **(GATE-FIX 2026-07-03, M3: strong form, unified with the AP-1 Depends column)**. Rationale: the R8 work rewrites `androidDex` and
 `AndroidDeps.resolveAar` in place; moving the files first would force a cross-repo
 double-review of the same diff. The R8 plan is written against the CURRENT file layout on
 purpose.
@@ -143,6 +143,12 @@ Notes:
 ---
 
 ## 2. Verbatim-vs-generalize map (file:line, current master `444d5ef`)
+
+> **(COORD-FIX 2026-07-03)** The line pins below predate the landed manifest-v2 milestone
+> (MA-4 edited AndroidBuild.scala; the sequenced R8 plan will edit it again). Before executing
+> ANY §2 row, re-derive line ranges from the then-current master; gate 4's verbatim baseline is
+> the post-R8 master, NOT 444d5ef. The AP-1 content (AndroidSdk rows + zip helpers) was verified
+> untouched by MA-4.
 
 | Source (current) | Lines | Destination | Verbatim? | Change |
 |---|---|---|---|---|
@@ -305,10 +311,11 @@ runner still lacks it, STOP and attach `ls $ANDROID_HOME/build-tools` output to 
 ### Step 4 — release + migrate sge
 
 1. Tag + `ci-release` (existing release flow, git-tag driven, `build.sbt:57-71`) →
-   version `0.4.0`.
+   version `0.6.0`. **(COORD-FIX 2026-07-03)** 0.4.0 = manifest-v2 (landed 2026-07-03);
+   0.5.0 = R8 pipeline; the android-tools/android-plugin split releases as 0.6.0.
 2. sge branch: bump `sge/project/plugins.sbt:5`, `sge/sge-build/build.sbt:60`,
-   `sge/project/Versions.scala:31` to `0.4.0`; change the sge-build plugin dependency to
-   ALSO add `addSbtPlugin("com.kubuszok" % "sbt-android" % "0.4.0")` if bridge FALLBACK-A
+   `sge/project/Versions.scala:31` to `0.6.0` (COORD-FIX 2026-07-03); change the sge-build plugin dependency to
+   ALSO add `addSbtPlugin("com.kubuszok" % "sbt-android" % "0.6.0")` if bridge FALLBACK-A
    shipped (otherwise transitive). Apply the `SgeAndroidPlatform` edit from §3 (PanamaPort
    preset + scribe predicate). Re-verify covenants:
 
@@ -369,12 +376,12 @@ prefix is used everywhere in this doc.
 
 | ID | Title | Contents | Depends on |
 |---|---|---|---|
-| AP-1 | android-tools module: Log, ApkZip, AndroidSdkTools + unit tests | §4 step 1; §2 rows for AndroidSdk.scala + zip helpers | **(GATE-FIX 2026-07-03, M3)** R8 plan merged, released (0.3.1), and green in sge CI |
+| AP-1 | android-tools module: Log, ApkZip, AndroidSdkTools + unit tests | §4 step 1; §2 rows for AndroidSdk.scala + zip helpers | **(GATE-FIX 2026-07-03, M3)** R8 plan merged, released (0.5.0 — COORD-FIX 2026-07-03; was 0.3.1), and green in sge CI |
 | AP-2 | android-tools: generic AarResolver (+ proguard.txt carry-through) | §2 AndroidDeps rows; §4 step 1.3 test | AP-1 |
 | AP-3 | android-plugin module: move AndroidBuild/AndroidPlugin, new settings, PanamaPortDeps preset; plugin re-export bridge | §3, §4 step 2 | AP-1, AP-2 |
 | AP-4 | Scripted test android/basic + CI job | §4 step 3 | AP-3 |
 | AP-5 | ManifestGen + androidManifestGenerate, NDK ensure-task | §2 ndk row, §3 keys | AP-3 |
-| AP-6 | (sge repo, re-scale DB) migrate sge to sbt-android 0.4.0: bump pins, SgeAndroidPlatform preset/predicate, covenant re-verify, demos androidAll | §4 step 4 | 0.4.0 released |
+| AP-6 | (sge repo, re-scale DB) migrate sge to sbt-android 0.6.0 (COORD-FIX 2026-07-03; was 0.4.0): bump pins, SgeAndroidPlatform preset/predicate, covenant re-verify, demos androidAll | §4 step 4 | 0.6.0 released |
 | AP-7 | Docs: CLAUDE.md/README module tables + adoption contract scaladoc | §4 step 5, §5 | AP-3 |
 
 ## 7. Verification gates (orchestrator re-runs independently)

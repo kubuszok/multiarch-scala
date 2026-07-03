@@ -37,28 +37,28 @@ class BundleCollisionSpec extends munit.FunSuite {
       )
     )
 
-  private val sn = ProviderType.ScalaNative
+  private val sn  = ProviderType.ScalaNative
   private val pnm = ProviderType.Panama
 
   // ── detectBundleCollisions ──────────────────────────────────────────
 
   test("no collision: disjoint bundles across providers") {
-    val a = v2Manifest("a", "provider-a", "1.0.0", Seq("linux-x86_64/liba.so"))
-    val b = v2Manifest("b", "provider-b", "1.0.0", Seq("linux-x86_64/libb.so"))
+    val a          = v2Manifest("a", "provider-a", "1.0.0", Seq("linux-x86_64/liba.so"))
+    val b          = v2Manifest("b", "provider-b", "1.0.0", Seq("linux-x86_64/libb.so"))
     val collisions = NativeExtract.detectBundleCollisions(Seq((sn, a, "a.jar"), (sn, b, "b.jar")))
     assertEquals(collisions, Seq.empty[NativeExtract.BundleCollision])
   }
 
   test("no collision: same file name on different platforms") {
-    val a = v2Manifest("a", "provider-a", "1.0.0", Seq("linux-x86_64/libfoo.so"))
-    val b = v2Manifest("b", "provider-b", "1.0.0", Seq("linux-aarch64/libfoo.so"))
+    val a          = v2Manifest("a", "provider-a", "1.0.0", Seq("linux-x86_64/libfoo.so"))
+    val b          = v2Manifest("b", "provider-b", "1.0.0", Seq("linux-aarch64/libfoo.so"))
     val collisions = NativeExtract.detectBundleCollisions(Seq((sn, a, "a.jar"), (sn, b, "b.jar")))
     assertEquals(collisions, Seq.empty[NativeExtract.BundleCollision])
   }
 
   test("v2 x v2 collision detected") {
-    val a = v2Manifest("a", "provider-a", "1.0.0", Seq("linux-x86_64/libfoo.so"))
-    val b = v2Manifest("b", "provider-b", "2.0.0", Seq("linux-x86_64/libfoo.so"))
+    val a          = v2Manifest("a", "provider-a", "1.0.0", Seq("linux-x86_64/libfoo.so"))
+    val b          = v2Manifest("b", "provider-b", "2.0.0", Seq("linux-x86_64/libfoo.so"))
     val collisions = NativeExtract.detectBundleCollisions(Seq((sn, a, "a.jar"), (sn, b, "b.jar")))
     assertEquals(collisions.size, 1)
     val c = collisions.head
@@ -74,8 +74,8 @@ class BundleCollisionSpec extends munit.FunSuite {
   }
 
   test("v1 x v2 collision detected via derived bundles, legacy resource path reported for v1") {
-    val v1 = v1Manifest("old", Map("linux-x86_64" -> "libfoo.so"))
-    val v2 = v2Manifest("new", "provider-new", "1.0.0", Seq("linux-x86_64/libfoo.so"))
+    val v1         = v1Manifest("old", Map("linux-x86_64" -> "libfoo.so"))
+    val v2         = v2Manifest("new", "provider-new", "1.0.0", Seq("linux-x86_64/libfoo.so"))
     val collisions = NativeExtract.detectBundleCollisions(Seq((pnm, v1, "old.jar"), (pnm, v2, "new.jar")))
     assertEquals(collisions.size, 1)
     val c = collisions.head
@@ -89,37 +89,37 @@ class BundleCollisionSpec extends munit.FunSuite {
   }
 
   test("same artifact+version seen twice is NOT a collision") {
-    val a1 = v2Manifest("a", "provider-a", "1.0.0", Seq("linux-x86_64/libfoo.so"))
-    val a2 = v2Manifest("a", "provider-a", "1.0.0", Seq("linux-x86_64/libfoo.so"))
+    val a1         = v2Manifest("a", "provider-a", "1.0.0", Seq("linux-x86_64/libfoo.so"))
+    val a2         = v2Manifest("a", "provider-a", "1.0.0", Seq("linux-x86_64/libfoo.so"))
     val collisions = NativeExtract.detectBundleCollisions(Seq((sn, a1, "a.jar"), (sn, a2, "other-path/a.jar")))
     assertEquals(collisions, Seq.empty[NativeExtract.BundleCollision])
   }
 
   test("same artifact at DIFFERENT versions IS a collision") {
-    val a1 = v2Manifest("a", "provider-a", "1.0.0", Seq("linux-x86_64/libfoo.so"))
-    val a2 = v2Manifest("a", "provider-a", "2.0.0", Seq("linux-x86_64/libfoo.so"))
+    val a1         = v2Manifest("a", "provider-a", "1.0.0", Seq("linux-x86_64/libfoo.so"))
+    val a2         = v2Manifest("a", "provider-a", "2.0.0", Seq("linux-x86_64/libfoo.so"))
     val collisions = NativeExtract.detectBundleCollisions(Seq((sn, a1, "a-1.jar"), (sn, a2, "a-2.jar")))
     assertEquals(collisions.size, 1)
   }
 
   test("stub binary vs real binary collides") {
-    val stub = v1Manifest("stubby", Map("linux-x86_64" -> "libfoo.so"), stub = true)
-    val real = v2Manifest("really", "provider-real", "1.0.0", Seq("linux-x86_64/libfoo.so"))
+    val stub       = v1Manifest("stubby", Map("linux-x86_64" -> "libfoo.so"), stub = true)
+    val real       = v2Manifest("really", "provider-real", "1.0.0", Seq("linux-x86_64/libfoo.so"))
     val collisions = NativeExtract.detectBundleCollisions(Seq((pnm, stub, "stub.jar"), (pnm, real, "real.jar")))
     assertEquals(collisions.size, 1)
     assertEquals(collisions.head.fileName, "libfoo.so")
   }
 
   test("collision key spans provider types (JNI/Panama/SN share the native/ namespace)") {
-    val a = v2Manifest("a", "provider-a", "1.0.0", Seq("linux-x86_64/libfoo.so"))
-    val b = v2Manifest("b", "provider-b", "1.0.0", Seq("linux-x86_64/libfoo.so"))
+    val a          = v2Manifest("a", "provider-a", "1.0.0", Seq("linux-x86_64/libfoo.so"))
+    val b          = v2Manifest("b", "provider-b", "1.0.0", Seq("linux-x86_64/libfoo.so"))
     val collisions = NativeExtract.detectBundleCollisions(Seq((sn, a, "a.jar"), (pnm, b, "b.jar")))
     assertEquals(collisions.size, 1)
   }
 
   test("collisions are sorted by (classifier, fileName)") {
-    val a = v2Manifest("a", "provider-a", "1.0.0", Seq("linux-x86_64/libz.so", "linux-aarch64/liby.so"))
-    val b = v2Manifest("b", "provider-b", "1.0.0", Seq("linux-x86_64/libz.so", "linux-aarch64/liby.so"))
+    val a          = v2Manifest("a", "provider-a", "1.0.0", Seq("linux-x86_64/libz.so", "linux-aarch64/liby.so"))
+    val b          = v2Manifest("b", "provider-b", "1.0.0", Seq("linux-x86_64/libz.so", "linux-aarch64/liby.so"))
     val collisions = NativeExtract.detectBundleCollisions(Seq((sn, a, "a.jar"), (sn, b, "b.jar")))
     assertEquals(collisions.map(c => (c.classifier, c.fileName)), Seq(("linux-aarch64", "liby.so"), ("linux-x86_64", "libz.so")))
   }
@@ -171,7 +171,7 @@ class BundleCollisionSpec extends munit.FunSuite {
 
   test("validateBundles: undeclared native lib entry in JAR") {
     val entries = Map(
-      "native/provider-a/1.0.0/linux-x86_64/libfoo.so"    -> 100000L,
+      "native/provider-a/1.0.0/linux-x86_64/libfoo.so" -> 100000L,
       "native/provider-a/1.0.0/linux-x86_64/libsneaky.so" -> 100000L
     )
     val violations = NativeExtract.validateBundles(validV2, entries, 32768L)
@@ -184,8 +184,8 @@ class BundleCollisionSpec extends munit.FunSuite {
     val entries = Map(
       "native/provider-a/1.0.0/linux-x86_64/libfoo.so" -> 100000L,
       "native/provider-a/1.0.0/linux-x86_64/README.md" -> 10L,
-      "pnm-provider.json"                              -> 500L,
-      "META-INF/MANIFEST.MF"                           -> 60L
+      "pnm-provider.json" -> 500L,
+      "META-INF/MANIFEST.MF" -> 60L
     )
     assertEquals(NativeExtract.validateBundles(validV2, entries, 32768L), Seq.empty[String])
   }

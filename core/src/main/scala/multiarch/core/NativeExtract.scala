@@ -38,23 +38,23 @@ object NativeExtract {
     * @param logger
     *   for logging discoveries and warnings
     * @return
-    *   pairs of (provider type, parsed manifest)
+    *   triples of (provider type, parsed manifest, source) — source is the JAR file name or the manifest file path, used for collision reporting
     */
   def discoverManifests(
     jars:          Seq[File],
     resourceDirs:  Seq[File],
     providerTypes: Seq[ProviderType],
     logger:        Logger
-  ): Seq[(ProviderType, ProviderManifest)] = {
+  ): Seq[(ProviderType, ProviderManifest, String)] = {
     val filenames = providerTypes.map(pt => pt.filename -> pt).toMap
 
-    val fromJars: Seq[(ProviderType, ProviderManifest)] = jars.flatMap { file =>
+    val fromJars: Seq[(ProviderType, ProviderManifest, String)] = jars.flatMap { file =>
       if (file.isFile && file.getName.endsWith(".jar")) {
         scanJarForManifests(file, filenames, logger)
       } else Seq.empty
     }
 
-    val fromResources: Seq[(ProviderType, ProviderManifest)] = resourceDirs.flatMap { dir =>
+    val fromResources: Seq[(ProviderType, ProviderManifest, String)] = resourceDirs.flatMap { dir =>
       filenames.flatMap { case (filename, providerType) =>
         val f = new File(dir, filename)
         if (f.exists()) {
@@ -63,7 +63,7 @@ object NativeExtract {
             val manifest = ProviderManifestCodec.parse(json)
             validateManifest(manifest, f.getAbsolutePath, providerType, logger)
             logger.info(s"[native-provider] Found ${providerType.label} manifest '${manifest.providerName}' in ${f.getAbsolutePath}")
-            Some(providerType -> manifest)
+            Some((providerType, manifest, f.getAbsolutePath))
           } catch {
             case e: Exception =>
               logger.warn(s"[native-provider] Error reading ${f.getAbsolutePath}: ${e.getMessage}")
@@ -80,7 +80,7 @@ object NativeExtract {
     file:      File,
     filenames: Map[String, ProviderType],
     logger:    Logger
-  ): Seq[(ProviderType, ProviderManifest)] =
+  ): Seq[(ProviderType, ProviderManifest, String)] =
     try {
       val jar = new JarFile(file)
       try
@@ -96,7 +96,7 @@ object NativeExtract {
               val manifest = ProviderManifestCodec.parse(sb.toString)
               validateManifest(manifest, file.getName, providerType, logger)
               logger.info(s"[native-provider] Found ${providerType.label} manifest '${manifest.providerName}' in ${file.getName}")
-              Some(providerType -> manifest)
+              Some((providerType, manifest, file.getName))
             } finally reader.close()
           } else None
         }.toSeq
@@ -128,6 +128,130 @@ object NativeExtract {
         )
       }
     }
+  }
+
+  // ── Bundle collision detection ────────────────────────────────────
+
+  /** A native library file bundled by more than one distinct provider for the same platform.
+    *
+    * @param classifier
+    *   platform classifier (e.g. `"linux-x86_64"`)
+    * @param fileName
+    *   the colliding library file name (e.g. `"libfoo.so"`)
+    * @param owners
+    *   the distinct providers bundling it, as (providerName, source jar/dir, resourcePath)
+    */
+  final case class BundleCollision(
+    classifier: String,
+    fileName:   String,
+    owners:     Seq[(String, String, String)]
+  )
+
+  /** The classpath resource path a manifest's bundle entry resolves to.
+    *
+    * v2 (artifact + version known): `native/<artifact>/<version>/<classifier>/<file>`; otherwise the legacy `native/<classifier>/<file>`.
+    */
+  def bundleResourcePath(manifest: ProviderManifest, bundleEntry: String): String =
+    (manifest.providerArtifact, manifest.providerVersion) match {
+      case (Some(artifact), Some(version)) => s"native/$artifact/$version/$bundleEntry"
+      case _                               => s"native/$bundleEntry"
+    }
+
+  /** Detect `(classifier, fileName)` pairs bundled by more than one distinct provider.
+    *
+    * Keys over [[ProviderManifest.effectiveBundles]] of ALL discovered manifests regardless of [[ProviderType]] (JNI/Panama/SN share the `native/` namespace and the extraction dir). Two owners with
+    * identical `(providerArtifact, providerVersion)` are NOT a collision (same artifact seen twice on the classpath); manifests without artifact+version (v1) are identified by their source instead.
+    * Stub binaries still count — a stub silently shadowing a real lib is exactly the bug class this prevents.
+    *
+    * @param discovered
+    *   discovered manifests with their source (jar file name or resource path), as returned by [[discoverManifests]]
+    * @return
+    *   collisions, sorted by (classifier, fileName) for deterministic reporting
+    */
+  def detectBundleCollisions(
+    discovered: Seq[(ProviderType, ProviderManifest, String)]
+  ): Seq[BundleCollision] = {
+    // (classifier, fileName) -> owners as (identity, providerName, source, resourcePath)
+    val entries: Seq[((String, String), (String, String, String, String))] = discovered.flatMap { case (_, manifest, source) =>
+      manifest.effectiveBundles.flatMap { bundle =>
+        val slash = bundle.indexOf('/')
+        if (slash <= 0 || slash == bundle.length - 1) None // malformed entry — validateBundles reports these
+        else {
+          val classifier = bundle.substring(0, slash)
+          val fileName   = bundle.substring(slash + 1)
+          val identity   = (manifest.providerArtifact, manifest.providerVersion) match {
+            case (Some(artifact), Some(version)) => s"artifact:$artifact:$version"
+            case _                               => s"source:$source"
+          }
+          Some(((classifier, fileName), (identity, manifest.providerName, source, bundleResourcePath(manifest, bundle))))
+        }
+      }
+    }
+    entries.groupBy(_._1).toSeq.sortBy(_._1).flatMap { case ((classifier, fileName), group) =>
+      val owners             = group.map(_._2).distinct
+      val distinctIdentities = owners.map(_._1).distinct
+      if (distinctIdentities.size > 1) {
+        // one representative owner per distinct identity, in first-seen order
+        val reps = distinctIdentities.flatMap(id => owners.find(_._1 == id))
+        Some(BundleCollision(classifier, fileName, reps.map(o => (o._2, o._3, o._4))))
+      } else None
+    }
+  }
+
+  /** Render a [[BundleCollision]] as the prescriptive error message (exact template — tests assert on it). */
+  def renderCollision(collision: BundleCollision): String = {
+    val sb = new StringBuilder
+    sb.append(s"[native-provider] Native library collision for platform '${collision.classifier}':\n")
+    sb.append(s"  file '${collision.fileName}' is bundled by ${collision.owners.size} providers:\n")
+    collision.owners.foreach { case (providerName, source, resourcePath) =>
+      sb.append(s"    - '$providerName' ($source) at $resourcePath\n")
+    }
+    sb.append("  Classpath order would silently decide which library is extracted/loaded.\n")
+    sb.append("  Fix: depend on only one of these providers, or rename the library in one of them.")
+    sb.toString
+  }
+
+  // ── Bundle-truth validation (provider-side) ───────────────────────
+
+  /** Validate that a provider JAR's contents match its manifest's bundle declarations.
+    *
+    * Checks, in order:
+    *   - every [[ProviderManifest.effectiveBundles]] entry exists in the JAR at its computed resource path ([[bundleResourcePath]]) — otherwise `missing`
+    *   - each such entry is at least `minLibBytes` bytes — otherwise `undersized`
+    *   - every `native/` JAR entry with a native-library extension is declared — otherwise `undeclared`
+    *
+    * @param manifest
+    *   the provider manifest
+    * @param jarEntries
+    *   JAR entry name -> uncompressed size in bytes
+    * @param minLibBytes
+    *   minimum plausible library size (e.g. 32768 — sge's ISS-484 gate)
+    * @return
+    *   human-readable violations; empty when the JAR is truthful
+    */
+  def validateBundles(
+    manifest:    ProviderManifest,
+    jarEntries:  Map[String, Long],
+    minLibBytes: Long
+  ): Seq[String] = {
+    val violations    = Seq.newBuilder[String]
+    val expectedPaths = manifest.effectiveBundles.map(bundle => bundleResourcePath(manifest, bundle) -> bundle)
+    expectedPaths.foreach { case (path, bundle) =>
+      jarEntries.get(path) match {
+        case None =>
+          violations += s"missing: bundle entry '$bundle' declared by provider '${manifest.providerName}' but JAR has no entry at $path"
+        case Some(size) if size < minLibBytes =>
+          violations += s"undersized: bundle entry '$bundle' at $path is $size bytes (< $minLibBytes)"
+        case _ => ()
+      }
+    }
+    val expectedSet = expectedPaths.map(_._1).toSet
+    jarEntries.keys.toSeq.sorted.foreach { entry =>
+      if (entry.startsWith("native/") && isNativeLib(entry) && !expectedSet.contains(entry)) {
+        violations += s"undeclared: JAR entry '$entry' is a native library not declared in provider '${manifest.providerName}' bundles"
+      }
+    }
+    violations.result()
   }
 
   // ── Flag merging ──────────────────────────────────────────────────

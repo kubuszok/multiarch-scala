@@ -13,8 +13,8 @@ object NativeProviderSettings {
 
   // ── Keys ──────────────────────────────────────────────────────────
 
-  /** Discovered provider manifests from the classpath. */
-  val discoverManifests = taskKey[Seq[(ProviderType, ProviderManifest)]](
+  /** Discovered provider manifests from the classpath, with their source (JAR file name or manifest path). */
+  val discoverManifests = taskKey[Seq[(ProviderType, ProviderManifest, String)]](
     "Discovers all native provider manifests from classpath dependencies and project resources"
   )
 

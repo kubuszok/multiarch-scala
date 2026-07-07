@@ -3,6 +3,8 @@ import kubuszok.sbt.KubuszokPlugin.autoImport._
 import sbtwelcome.UsefulTask
 import multiarch.core.Platform
 import multiarch.sbt.MultiArchResourcesPlugin
+import com.typesafe.tools.mima.core._
+import com.typesafe.tools.mima.core.ProblemFilters._
 
 // Maven Central requires a Javadoc JAR; publish an empty one for all modules.
 ThisBuild / Compile / doc / sources := Seq.empty
@@ -34,6 +36,73 @@ val publishSettings = Seq(
 val noPublishSettings =
   Seq(projectType := ProjectType.NonPublished)
 
+// ── Binary compatibility (MiMa) ───────────────────────────────────────
+//
+// sbt-mima is bundled in sbt-kubuszok. This branch establishes the 0.4.0 binary-compatibility
+// baseline: MiMa checks every published library against its last release (0.3.0) so the 0.4.x line
+// gets accidental-break protection going forward, while the FOUR intentional 0.3.x -> 0.4.0 breaks
+// from the collision-hardening plan (docs/plans/2026-07-native-flags-and-collisions.md) are
+// explicitly whitelisted below. Bump `mimaPreviousVersion` on every release.
+val mimaPreviousVersion = "0.3.0"
+
+// Modules with a real 0.3.0 baseline to check against. The plugin is deliberately excluded (its
+// baseline is 0.4.0, not 0.3.0 — see the comment on its mimaPreviousArtifacts below).
+val mimaCheckedModules =
+  Set("multiarch-core", "multiarch-resources", "multiarch-panama-api", "multiarch-panama-jdk", "sn-provider-curl")
+
+val mimaSettings = Seq(
+  mimaPreviousArtifacts := {
+    moduleName.value match {
+      case m if mimaCheckedModules.contains(m) =>
+        // `.cross(crossVersion.value)` applies the project's own platform-aware cross-version so each
+        // artifact is compared against its matching previous one (`_3`, `_2.13`, `_sjs1_3`,
+        // `_native0.5_3`, or no suffix for the crossPaths:=false curl provider).
+        Set((organization.value % moduleName.value % mimaPreviousVersion).cross(crossVersion.value))
+      case "sbt-multiarch-scala" =>
+        // issue #30 / plan §2.2: the sbt plugin's binary baseline is 0.4.0, NOT 0.3.0.
+        //   (a) the sbt-2.0 axis (sbt-multiarch-scala_3_2.0) is brand new in 0.4.0 — no 0.3.0
+        //       artifact exists to compare against;
+        //   (b) MiMa on sbt plugins is impractical — the sbtPluginExtra cross-version and the fact
+        //       that TaskKey type parameters erase away make the report unreliable;
+        //   (c) the two intentional 0.4.0 plugin breaks (the `discoverManifests` TaskKey TYPE change
+        //       and the new hard-fail collision gate inside existing tasks) are documented breaks.
+        // So the first real plugin MiMa baseline is 0.4.0 itself, which protects 0.4.1+.
+        Set.empty
+      case _ => Set.empty // non-published / aggregate modules
+    }
+  },
+  mimaFailOnNoPrevious := mimaCheckedModules.contains(moduleName.value),
+  // The FOUR intentional 0.3.x -> 0.4.0 break surfaces. Each exclusion is a documented 0.4.0 break;
+  // 0.4.0 is the declared compatibility break point for the collision-hardening work.
+  mimaBinaryIssueFilters ++= Seq[ProblemFilter](
+    // (i) ProviderManifest gained three v2 fields (providerArtifact, providerVersion, bundles) with
+    //     defaults. Adding case-class fields necessarily changes the primary constructor, apply,
+    //     copy, and unapply signatures. Intentional 0.4.0 break (plan §2.1: "if the kubuszok MiMa
+    //     gate rejects the case-class change, this is expected for a 0.3.x -> 0.4.0 minor").
+    exclude[DirectMissingMethodProblem]("multiarch.core.ProviderManifest.this"),
+    exclude[DirectMissingMethodProblem]("multiarch.core.ProviderManifest.copy"),
+    exclude[DirectMissingMethodProblem]("multiarch.core.ProviderManifest.apply"),
+    // companion's abstract-function arity changed (AbstractFunction3 -> AbstractFunction6) with the field count
+    exclude[MissingTypesProblem]("multiarch.core.ProviderManifest$"),
+    exclude[IncompatibleResultTypeProblem]("multiarch.core.ProviderManifest.unapply"),
+    exclude[IncompatibleSignatureProblem]("multiarch.core.ProviderManifest.unapply"),
+    exclude[DirectMissingMethodProblem]("multiarch.core.ProviderManifest$.apply"),
+    exclude[DirectMissingMethodProblem]("multiarch.core.ProviderManifest$.copy"),
+    exclude[IncompatibleSignatureProblem]("multiarch.core.ProviderManifest#*.copy"),
+    // (ii) NativeExtract.discoverManifests return type changed from
+    //      Seq[(ProviderType, ProviderManifest)] to Seq[(ProviderType, ProviderManifest, String)] so
+    //      collision detection can track each manifest's source (plan §2.2). The sbt plugin re-exports
+    //      the matching TaskKey type change; verified consumers do not use the value directly.
+    exclude[IncompatibleResultTypeProblem]("multiarch.core.NativeExtract.discoverManifests"),
+    exclude[IncompatibleSignatureProblem]("multiarch.core.NativeExtract.discoverManifests"),
+    exclude[DirectMissingMethodProblem]("multiarch.core.NativeExtract.discoverManifests")
+    // (iii) the hard-fail collision gate lives inside existing sbt tasks (plugin), a BEHAVIORAL change
+    //       MiMa cannot observe, and the plugin is not MiMa-checked (see above) — no filter needed.
+    // (iv) the v2 versioned resource layout (native/<artifact>/<version>/<classifier>/<file>) is a
+    //       RESOURCE-format change, not a binary API change — MiMa does not see it — no filter needed.
+  )
+)
+
 // ── Root project ──────────────────────────────────────────────────────
 
 lazy val root = project
@@ -41,6 +110,9 @@ lazy val root = project
   .enablePlugins(KubuszokRootPlugin)
   .settings(publishSettings *)
   .settings(noPublishSettings *)
+  // Aggregate `mimaReportBinaryIssues` runs on the root too; mimaSettings routes the root (and the
+  // plugin) through the mimaFailOnNoPrevious:=false / empty-previous graceful path instead of erroring.
+  .settings(mimaSettings *)
   .aggregate(core)
   .aggregate(multiarchResources.projectRefs *)
   .aggregate(plugin, snProviderCurl, `panama-api`, `panama-jdk`)
@@ -76,6 +148,7 @@ lazy val root = project
 lazy val core = project
   .in(file("core"))
   .settings(publishSettings *)
+  .settings(mimaSettings *)
   .settings(
     name := "multiarch-core",
     // Future module-path adopters can scope --enable-native-access to this module (plan §4.3).
@@ -134,6 +207,7 @@ lazy val multiarchResources = (projectMatrix in file("multiarch-resources"))
     )
   )
   .settings(publishSettings *)
+  .settings(mimaSettings *)
   .settings(
     name := "multiarch-resources",
     libraryDependencies += "org.scalameta" %%% "munit" % "1.3.3" % Test,
@@ -147,6 +221,7 @@ lazy val plugin = project
   .enablePlugins(SbtPlugin)
   .dependsOn(core)
   .settings(publishSettings *)
+  .settings(mimaSettings *)
   .settings(
     name := "sbt-multiarch-scala",
     projectType := ProjectType.JarOnly,
@@ -194,6 +269,7 @@ lazy val plugin = project
 lazy val snProviderCurl = project
   .in(file("sn-provider-curl"))
   .settings(publishSettings *)
+  .settings(mimaSettings *)
   .settings(
     name := "sn-provider-curl",
     autoScalaLibrary := false,
@@ -246,6 +322,7 @@ lazy val snProviderCurl = project
 lazy val `panama-api` = project
   .in(file("panama-api"))
   .settings(publishSettings *)
+  .settings(mimaSettings *)
   .settings(
     name := "multiarch-panama-api",
     // Future module-path adopters can scope --enable-native-access to this module (plan §4.3).
@@ -268,6 +345,7 @@ lazy val `panama-jdk` = project
   .in(file("panama-jdk"))
   .dependsOn(`panama-api`)
   .settings(publishSettings *)
+  .settings(mimaSettings *)
   .settings(
     name := "multiarch-panama-jdk",
     // Future module-path adopters can scope --enable-native-access to this module (plan §4.3).

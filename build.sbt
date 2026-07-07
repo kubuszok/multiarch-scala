@@ -38,15 +38,16 @@ val noPublishSettings =
 
 // ── Binary compatibility (MiMa) ───────────────────────────────────────
 //
-// sbt-mima is bundled in sbt-kubuszok. This branch establishes the 0.4.0 binary-compatibility
-// baseline: MiMa checks every published library against its last release (0.3.0) so the 0.4.x line
-// gets accidental-break protection going forward, while the FOUR intentional 0.3.x -> 0.4.0 breaks
-// from the collision-hardening plan (docs/plans/2026-07-native-flags-and-collisions.md) are
-// explicitly whitelisted below. Bump `mimaPreviousVersion` on every release.
-val mimaPreviousVersion = "0.3.0"
+// sbt-mima is bundled in sbt-kubuszok. Now that 0.4.0 is released, MiMa checks every published
+// library against 0.4.0 so the 0.4.x line gets accidental-break protection going forward. The FOUR
+// intentional 0.3.x -> 0.4.0 breaks from the collision-hardening plan
+// (docs/plans/2026-07-native-flags-and-collisions.md) are now BEHIND the baseline, so their
+// whitelist filters have been dropped — keeping them would mask real future 0.4.x breaks. Bump
+// `mimaPreviousVersion` on every release.
+val mimaPreviousVersion = "0.4.0"
 
-// Modules with a real 0.3.0 baseline to check against. The plugin is deliberately excluded (its
-// baseline is 0.4.0, not 0.3.0 — see the comment on its mimaPreviousArtifacts below).
+// Modules with a real 0.4.0 baseline to check against. The plugin also baselines at 0.4.0 (its first
+// MiMa baseline — see the comment on its mimaPreviousArtifacts below) but stays out of this set.
 val mimaCheckedModules =
   Set("multiarch-core", "multiarch-resources", "multiarch-panama-api", "multiarch-panama-jdk", "sn-provider-curl")
 
@@ -72,35 +73,11 @@ val mimaSettings = Seq(
     }
   },
   mimaFailOnNoPrevious := mimaCheckedModules.contains(moduleName.value),
-  // The FOUR intentional 0.3.x -> 0.4.0 break surfaces. Each exclusion is a documented 0.4.0 break;
-  // 0.4.0 is the declared compatibility break point for the collision-hardening work.
-  mimaBinaryIssueFilters ++= Seq[ProblemFilter](
-    // (i) ProviderManifest gained three v2 fields (providerArtifact, providerVersion, bundles) with
-    //     defaults. Adding case-class fields necessarily changes the primary constructor, apply,
-    //     copy, and unapply signatures. Intentional 0.4.0 break (plan §2.1: "if the kubuszok MiMa
-    //     gate rejects the case-class change, this is expected for a 0.3.x -> 0.4.0 minor").
-    exclude[DirectMissingMethodProblem]("multiarch.core.ProviderManifest.this"),
-    exclude[DirectMissingMethodProblem]("multiarch.core.ProviderManifest.copy"),
-    exclude[DirectMissingMethodProblem]("multiarch.core.ProviderManifest.apply"),
-    // companion's abstract-function arity changed (AbstractFunction3 -> AbstractFunction6) with the field count
-    exclude[MissingTypesProblem]("multiarch.core.ProviderManifest$"),
-    exclude[IncompatibleResultTypeProblem]("multiarch.core.ProviderManifest.unapply"),
-    exclude[IncompatibleSignatureProblem]("multiarch.core.ProviderManifest.unapply"),
-    exclude[DirectMissingMethodProblem]("multiarch.core.ProviderManifest$.apply"),
-    exclude[DirectMissingMethodProblem]("multiarch.core.ProviderManifest$.copy"),
-    exclude[IncompatibleSignatureProblem]("multiarch.core.ProviderManifest#*.copy"),
-    // (ii) NativeExtract.discoverManifests return type changed from
-    //      Seq[(ProviderType, ProviderManifest)] to Seq[(ProviderType, ProviderManifest, String)] so
-    //      collision detection can track each manifest's source (plan §2.2). The sbt plugin re-exports
-    //      the matching TaskKey type change; verified consumers do not use the value directly.
-    exclude[IncompatibleResultTypeProblem]("multiarch.core.NativeExtract.discoverManifests"),
-    exclude[IncompatibleSignatureProblem]("multiarch.core.NativeExtract.discoverManifests"),
-    exclude[DirectMissingMethodProblem]("multiarch.core.NativeExtract.discoverManifests")
-    // (iii) the hard-fail collision gate lives inside existing sbt tasks (plugin), a BEHAVIORAL change
-    //       MiMa cannot observe, and the plugin is not MiMa-checked (see above) — no filter needed.
-    // (iv) the v2 versioned resource layout (native/<artifact>/<version>/<classifier>/<file>) is a
-    //       RESOURCE-format change, not a binary API change — MiMa does not see it — no filter needed.
-  )
+  // No issue filters: the FOUR intentional 0.3.x -> 0.4.0 breaks (ProviderManifest v2-field arity and
+  // NativeExtract.discoverManifests return type) are now BEHIND the 0.4.0 baseline. With 0.4.x compared
+  // against 0.4.0, those filters would only mask genuine future breaks, so they have been removed.
+  // Add new exclusions here only for deliberate, documented 0.4.x breaks.
+  mimaBinaryIssueFilters ++= Seq.empty[ProblemFilter]
 )
 
 // ── Root project ──────────────────────────────────────────────────────

@@ -156,10 +156,17 @@ object NativeLibLoader {
   /** A v2 provider owning a `(classifier, fileName)` bundle entry. */
   final private[core] case class V2Owner(providerName: String, source: String, artifact: String, version: String)
 
-  @volatile private var v2IndexCache: Map[(String, String), Seq[V2Owner]] = null // scalastyle:ignore null
+  /** The manifest-v2 classpath index plus any manifest parse failures encountered while building it.
+    *
+    * issue #30: a corrupt/truncated runtime manifest previously vanished from the index with NO record, so a lookup that fell through ended as an opaque "Cannot find native library" whose diagnostic
+    * omitted the real cause. `parseFailures` carries "manifest at <url> failed to parse: <err>" notes so [[resolve]] can surface them in the final `UnsatisfiedLinkError`.
+    */
+  final private[core] case class V2Index(byFile: Map[(String, String), Seq[V2Owner]], parseFailures: Seq[String])
+
+  @volatile private var v2IndexCache: V2Index = null // scalastyle:ignore null
 
   /** The v2 index for the loader's own class loader, built lazily once per JVM. */
-  private def defaultV2Index(): Map[(String, String), Seq[V2Owner]] = {
+  private def defaultV2Index(): V2Index = {
     if (v2IndexCache == null) {
       synchronized {
         if (v2IndexCache == null) v2IndexCache = buildV2Index(getClass.getClassLoader)
@@ -168,10 +175,17 @@ object NativeLibLoader {
     v2IndexCache
   }
 
-  /** Build `(classifier, fileName) -> owners` from every runtime provider manifest (`jni-provider.json`, `pnm-provider.json`) on the class loader that declares artifact + version. */
-  private[core] def buildV2Index(classLoader: ClassLoader): Map[(String, String), Seq[V2Owner]] = {
-    val runtimeTypes = Seq(ProviderType.Jni, ProviderType.Panama)
-    val entries      = Seq.newBuilder[((String, String), V2Owner)]
+  /** Build `(classifier, fileName) -> owners` from every runtime provider manifest (`jni-provider.json`, `pnm-provider.json`) on the class loader that declares artifact + version.
+    *
+    * issue #30 — fail-open posture for the runtime collision index: this index is the loader's LAST-RESORT collision guard (the build-time plugin checks are the hard gate — see
+    * `docs/plans/2026-07-native-flags-and-collisions.md` §2.3). A corrupt manifest for ONE provider must not break loading of every unrelated library on the classpath, so a parse failure here is
+    * recorded (with the resource URL and the error) rather than thrown; the note only surfaces if resolution ultimately fails. The explicit-load path ([[discoverClasspathManifests]]) is fail-CLOSED
+    * because there the corrupt manifest names exactly what the caller asked to load.
+    */
+  private[core] def buildV2Index(classLoader: ClassLoader): V2Index = {
+    val runtimeTypes  = Seq(ProviderType.Jni, ProviderType.Panama)
+    val entries       = Seq.newBuilder[((String, String), V2Owner)]
+    val parseFailures = Seq.newBuilder[String]
     runtimeTypes.foreach { providerType =>
       val resources = classLoader.getResources(providerType.filename)
       while (resources.hasMoreElements) {
@@ -194,11 +208,14 @@ object NativeLibLoader {
             case _ => () // v1 manifest — not indexable; the legacy lookup covers it
           }
         } catch {
-          case _: Exception => () // unparseable manifest — skip; the legacy lookup may still succeed
+          case scala.util.control.NonFatal(e) =>
+            // issue #30: record the corruption instead of swallowing it silently.
+            parseFailures += s"manifest at $url failed to parse: ${e.getMessage}"
         }
       }
     }
-    entries.result().groupBy(_._1).map { case (key, owners) => key -> owners.map(_._2).distinct }
+    val byFile = entries.result().groupBy(_._1).map { case (key, owners) => key -> owners.map(_._2).distinct }
+    V2Index(byFile, parseFailures.result())
   }
 
   // ── Internal resolution pipeline ──────────────────────────────────
@@ -208,18 +225,22 @@ object NativeLibLoader {
     libName:     String,
     classifier:  String,
     classLoader: ClassLoader,
-    v2Index:     Map[(String, String), Seq[V2Owner]]
+    v2Index:     V2Index
   ): Path = {
     val mapped = mappedFileName(libName)
     val notes  = Seq.newBuilder[String]
+    // issue #30: seed the diagnostic with any manifest-parse failures recorded while building the
+    // index, so a corrupt manifest is surfaced ("manifest at <url> failed to parse: <err>") instead
+    // of leaving an opaque "Cannot find native library" when the lookup falls through.
+    notes ++= v2Index.parseFailures
 
     findOnLibraryPath(mapped)
-      .orElse(extractViaV2Index(mapped, classifier, classLoader, v2Index, notes))
+      .orElse(extractViaV2Index(mapped, classifier, classLoader, v2Index.byFile, notes))
       .orElse(extractFromClasspathLegacy(mapped, classifier, classLoader))
       .orElse(loadViaSystemOnAndroid(libName, mapped))
       .getOrElse {
         val libPath      = System.getProperty("java.library.path", "")
-        val v2Candidates = v2Index.getOrElse((classifier, mapped), Seq.empty).map(o => s"native/${o.artifact}/${o.version}/$classifier/$mapped")
+        val v2Candidates = v2Index.byFile.getOrElse((classifier, mapped), Seq.empty).map(o => s"native/${o.artifact}/${o.version}/$classifier/$mapped")
         val sb           = new StringBuilder
         sb.append(s"Cannot find native library '$mapped' (logical name: '$libName').\n")
         sb.append(s"  Searched java.library.path: $libPath\n")
@@ -317,7 +338,14 @@ object NativeLibLoader {
     }
   }
 
-  /** Discover provider manifests from the classpath. */
+  /** Discover provider manifests from the classpath.
+    *
+    * issue #30 — fail-CLOSED posture: this backs the explicit [[loadAll]] / [[loadConfigs]] entry points, whose whole purpose is to load the libraries a named provider type declares. A corrupt or
+    * truncated `<type>-provider.json` therefore means we cannot know what to load, and silently skipping it would defer the failure to a later, far more confusing `UnsatisfiedLinkError` (or missing
+    * symbol) deep inside an FFI call. So a parse failure is a hard error here, with the source URL and provider type attached — the packaging bug surfaces immediately at the load site. (Contrast
+    * [[buildV2Index]], the last-resort collision index, which is deliberately fail-open per `docs/plans/2026-07-native-flags-and-collisions.md` §2.3.) The parser itself is bounds-checked
+    * ([[ProviderManifestCodec]]), so truncated input yields a clear "unexpected end of manifest" cause rather than a raw `StringIndexOutOfBoundsException` naming neither provider nor URL.
+    */
   private def discoverClasspathManifests(providerType: ProviderType): Seq[ProviderManifest] = {
     val classLoader = getClass.getClassLoader
     val resources   = classLoader.getResources(providerType.filename)
@@ -327,7 +355,13 @@ object NativeLibLoader {
       val stream = url.openStream()
       try
         manifests += ProviderManifestCodec.parse(readFully(stream))
-      finally stream.close()
+      catch {
+        case scala.util.control.NonFatal(e) =>
+          throw new IllegalStateException(
+            s"Failed to parse ${providerType.filename} manifest at $url: ${e.getMessage}",
+            e
+          )
+      } finally stream.close()
     }
     manifests.result()
   }

@@ -264,4 +264,72 @@ class ProviderManifestCodecSpec extends munit.FunSuite {
     val m    = ProviderManifestCodec.parse(json)
     assertEquals(m.providerName, "test\"name")
   }
+
+  // ── Corrupt / truncated manifests (issue #30) ───────────────────────
+  //
+  // The hand-rolled parser must never let a raw StringIndexOutOfBoundsException escape on truncated
+  // input: both NativeLibLoader paths (buildV2Index fail-open, discoverClasspathManifests fail-closed)
+  // rely on parse failures being clear, catchable RuntimeExceptions naming the offset.
+
+  /** Parse `json`, expecting a failure that is a clear RuntimeException — NOT a raw StringIndexOutOfBoundsException. */
+  private def assertParseFailsCleanly(json: String): RuntimeException = {
+    val e = intercept[RuntimeException](ProviderManifestCodec.parse(json))
+    assert(
+      !e.isInstanceOf[StringIndexOutOfBoundsException],
+      s"raw StringIndexOutOfBoundsException escaped for input <$json>: $e"
+    )
+    e
+  }
+
+  test("truncated object (cut off mid-object) fails with a clear end-of-manifest error") {
+    val e = assertParseFailsCleanly("""{ "provider-name": "x", "provider-version": """)
+    assert(e.getMessage.contains("end of manifest") || e.getMessage.contains("end of JSON"), e.getMessage)
+  }
+
+  test("object truncated right after the opening brace fails cleanly") {
+    val e = assertParseFailsCleanly("{")
+    assert(e.getMessage.contains("Unexpected end of manifest at offset"), e.getMessage)
+  }
+
+  test("truncated array fails with a clear end-of-manifest error") {
+    val e = assertParseFailsCleanly("""{ "configs": [ { "config-name": "a" }""")
+    assert(e.getMessage.contains("end of manifest") || e.getMessage.contains("Unterminated"), e.getMessage)
+  }
+
+  test("truncated string (unterminated) fails cleanly") {
+    val e = assertParseFailsCleanly("""{ "provider-name": "unterminated""")
+    assert(e.getMessage.contains("Unterminated") || e.getMessage.contains("end of manifest"), e.getMessage)
+  }
+
+  test("invalid token fails with a clear character error, not an index crash") {
+    val e = assertParseFailsCleanly("""{ "provider-name": @ }""")
+    assert(e.getMessage.contains("Unexpected character"), e.getMessage)
+  }
+
+  test("incomplete unicode escape at end of input fails cleanly") {
+    // Build the literal backslash-then-u escape via string escapes: a raw backslash-u in source is a lexer-level unicode escape.
+    val e = assertParseFailsCleanly("{ \"provider-name\": \"" + "\\u12")
+    assert(!e.isInstanceOf[StringIndexOutOfBoundsException], e.toString)
+  }
+
+  test("no raw StringIndexOutOfBoundsException for ANY truncation of a valid manifest") {
+    val full = """{
+      "provider-schema-version": "0.2.0",
+      "provider-name": "curl",
+      "provider-artifact": "sn-provider-curl",
+      "provider-version": "0.4.0",
+      "bundles": ["linux-x86_64/libcurl.a"],
+      "configs": [ { "config-name": "curl", "linux-x86_64": { "binary": "libcurl.a", "flags-groups": [["-lpthread"]] } } ]
+    }"""
+    // Every prefix must either parse (unlikely for partial input) or fail with a catchable, non-index-crash error.
+    (0 until full.length).foreach { cut =>
+      val prefix = full.substring(0, cut)
+      try ProviderManifestCodec.parse(prefix)
+      catch {
+        case e: StringIndexOutOfBoundsException =>
+          fail(s"raw StringIndexOutOfBoundsException for prefix length $cut: <$prefix>", e)
+        case _: RuntimeException => () // expected clean failure
+      }
+    }
+  }
 }

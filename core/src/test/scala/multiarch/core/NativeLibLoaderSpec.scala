@@ -235,6 +235,60 @@ class NativeLibLoaderSpec extends munit.FunSuite {
     }
   }
 
+  // ── Corrupt / truncated runtime manifest (issue #30) ────────────────
+
+  test("buildV2Index records a corrupt manifest in parseFailures instead of swallowing it") {
+    withFixtureClassLoader(1) { (root, _) =>
+      // truncated JSON: valid prefix then cut off mid-object
+      write(root, "pnm-provider.json", """{ "provider-schema-version": "0.2.0", "provider-name": "broken", "bundles": ["x/y""")
+    } { cl =>
+      val index = NativeLibLoader.buildV2Index(cl)
+      // fail-open: the corrupt provider contributes nothing to the index...
+      assert(index.byFile.isEmpty, index.byFile.toString)
+      // ...but the failure is RECORDED, naming the source URL and the parse error.
+      assertEquals(index.parseFailures.size, 1, index.parseFailures.toString)
+      val note = index.parseFailures.head
+      assert(note.startsWith("manifest at "), note)
+      assert(note.contains("pnm-provider.json"), note)
+      assert(note.contains("failed to parse:"), note)
+    }
+  }
+
+  test("resolve surfaces the corrupt-manifest note in the final diagnostic (no StringIndexOutOfBounds)") {
+    val lib = "corruptdiag"
+    withFixtureClassLoader(1) { (root, _) =>
+      write(root, "pnm-provider.json", """{ "provider-name": "broken", "bundles": [ "linux""")
+    } { cl =>
+      withLibraryPath("/nonexistent-dir-for-test") {
+        // must throw UnsatisfiedLinkError (the miss), NOT a raw StringIndexOutOfBoundsException
+        val error = interceptLinkError {
+          NativeLibLoader.resolve(lib, classifier, cl, NativeLibLoader.buildV2Index(cl))
+        }
+        val msg = error.getMessage
+        assert(msg.contains("Note: manifest at "), msg)
+        assert(msg.contains("pnm-provider.json"), msg)
+        assert(msg.contains("failed to parse:"), msg)
+      }
+    }
+  }
+
+  test("a corrupt manifest does not disable resolution of an unrelated, valid v2 provider") {
+    val good = "goodlib"
+    withFixtureClassLoader(2) { (root, i) =>
+      if (i == 0) {
+        write(root, "pnm-provider.json", v2ManifestJson("prov-good", "provider-good", "1.0.0", Seq(s"$classifier/${mapped(good)}")))
+        write(root, s"native/provider-good/1.0.0/$classifier/${mapped(good)}", "GOOD CONTENT")
+      } else {
+        write(root, "jni-provider.json", """{ "provider-name": "broken", "provider-artifact": "x", "provider-version": "1""")
+      }
+    } { cl =>
+      withLibraryPath("/nonexistent-dir-for-test") {
+        val path = NativeLibLoader.resolve(good, classifier, cl, NativeLibLoader.buildV2Index(cl))
+        assertEquals(new String(Files.readAllBytes(path), StandardCharsets.UTF_8), "GOOD CONTENT")
+      }
+    }
+  }
+
   test("v1 manifests without artifact+version do not enter the v2 index") {
     withFixtureClassLoader(1) { (root, _) =>
       write(
@@ -247,7 +301,7 @@ class NativeLibLoaderSpec extends munit.FunSuite {
            |}""".stripMargin
       )
     } { cl =>
-      assertEquals(NativeLibLoader.buildV2Index(cl), Map.empty[(String, String), Seq[NativeLibLoader.V2Owner]])
+      assertEquals(NativeLibLoader.buildV2Index(cl).byFile, Map.empty[(String, String), Seq[NativeLibLoader.V2Owner]])
     }
   }
 }

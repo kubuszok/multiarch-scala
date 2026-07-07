@@ -181,17 +181,17 @@ object ProviderManifestCodec {
     private def parseObj(s: String, pos: Int): (Map[String, Any], Int) = {
       var p      = skipWhitespace(s, pos + 1) // skip '{'
       val result = scala.collection.mutable.LinkedHashMap.empty[String, Any]
-      if (s.charAt(p) == '}') return (result.toMap, p + 1)
+      if (charAt(s, p) == '}') return (result.toMap, p + 1)
       while (true) {
         p = skipWhitespace(s, p)
         val (key, p2) = parseString(s, p)
         p = skipWhitespace(s, p2)
-        if (s.charAt(p) != ':') throw new RuntimeException(s"Expected ':' at position $p")
+        if (charAt(s, p) != ':') throw new RuntimeException(s"Expected ':' at position $p")
         p = skipWhitespace(s, p + 1)
         val (value, p3) = parseValue(s, p)
         result(key.asInstanceOf[String]) = value
         p = skipWhitespace(s, p3)
-        s.charAt(p) match {
+        charAt(s, p) match {
           case ',' => p = p + 1
           case '}' => return (result.toMap, p + 1)
           case c   => throw new RuntimeException(s"Expected ',' or '}' at position $p, got '$c'")
@@ -203,12 +203,12 @@ object ProviderManifestCodec {
     private def parseArr(s: String, pos: Int): (Seq[Any], Int) = {
       var p      = skipWhitespace(s, pos + 1) // skip '['
       val result = scala.collection.mutable.ArrayBuffer.empty[Any]
-      if (s.charAt(p) == ']') return (result.toSeq, p + 1)
+      if (charAt(s, p) == ']') return (result.toSeq, p + 1)
       while (true) {
         val (value, p2) = parseValue(s, p)
         result += value
         p = skipWhitespace(s, p2)
-        s.charAt(p) match {
+        charAt(s, p) match {
           case ',' => p = skipWhitespace(s, p + 1)
           case ']' => return (result.toSeq, p + 1)
           case c   => throw new RuntimeException(s"Expected ',' or ']' at position $p, got '$c'")
@@ -218,13 +218,13 @@ object ProviderManifestCodec {
     }
 
     private def parseString(s: String, pos: Int): (String, Int) = {
-      if (s.charAt(pos) != '"') throw new RuntimeException("Expected '\"' at position " + pos)
+      if (charAt(s, pos) != '"') throw new RuntimeException("Expected '\"' at position " + pos)
       val sb = new StringBuilder
       var p  = pos + 1
       while (p < s.length && s.charAt(p) != '"') {
         if (s.charAt(p) == '\\') {
           p += 1
-          s.charAt(p) match {
+          charAt(s, p) match {
             case '"'  => sb.append('"')
             case '\\' => sb.append('\\')
             case '/'  => sb.append('/')
@@ -232,6 +232,9 @@ object ProviderManifestCodec {
             case 'r'  => sb.append('\r')
             case 't'  => sb.append('\t')
             case 'u'  =>
+              // issue #30: bounds-check the 4 hex digits so a truncated unicode escape yields a clear
+              // "end of manifest" error instead of a raw StringIndexOutOfBoundsException.
+              if (p + 5 > s.length) throw new RuntimeException(s"Unexpected end of manifest at offset $p (incomplete \\u escape)")
               val hex = s.substring(p + 1, p + 5)
               sb.append(Integer.parseInt(hex, 16).toChar)
               p += 4
@@ -263,6 +266,17 @@ object ProviderManifestCodec {
     private def parseLiteral(s: String, pos: Int, literal: String, value: Any): (Any, Int) =
       if (s.startsWith(literal, pos)) (value, pos + literal.length)
       else throw new RuntimeException(s"Expected '$literal' at position $pos")
+
+    /** Bounds-checked character read.
+      *
+      * issue #30: the hand-rolled parser previously called `s.charAt(p)` directly after `skipWhitespace`, so truncated input (a manifest cut off mid-object/array/string) surfaced as a raw
+      * `StringIndexOutOfBoundsException` that named neither the offset nor the manifest. Routing every structural read through this helper yields a clear "unexpected end of manifest at offset N"
+      * instead.
+      */
+    private def charAt(s: String, p: Int): Char = {
+      if (p >= s.length) throw new RuntimeException(s"Unexpected end of manifest at offset $p")
+      s.charAt(p)
+    }
 
     private def skipWhitespace(s: String, pos: Int): Int = {
       var p = pos

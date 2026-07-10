@@ -139,7 +139,7 @@ lazy val core = project
       if (scalaVersion.value == "3.3.8") Seq("-Yfuture-lazy-vals", "-java-output-version", "17")
       else Seq.empty
     },
-    libraryDependencies += "org.scalameta" %% "munit" % "1.3.3" % Test
+    libraryDependencies += "org.scalameta" %% "munit" % "1.3.4" % Test
   )
 
 // ── Shared cross-platform resource-access mechanism ───────────────────
@@ -187,7 +187,7 @@ lazy val multiarchResources = (projectMatrix in file("multiarch-resources"))
   .settings(mimaSettings *)
   .settings(
     name := "multiarch-resources",
-    libraryDependencies += "org.scalameta" %%% "munit" % "1.3.3" % Test,
+    libraryDependencies += "org.scalameta" %%% "munit" % "1.3.4" % Test,
     testFrameworks += new TestFramework("munit.Framework")
   )
 

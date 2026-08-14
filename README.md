@@ -108,6 +108,80 @@ NativeLibLoader.loadConfigs(ProviderType.Panama, Set("mylib"))
 val path = NativeLibLoader.load("mylib")
 ```
 
+## Quick Start: cross-platform service loading (`multiarch-serviceloader`)
+
+`java.util.ServiceLoader` is the JDK's way of finding implementations declared in
+`META-INF/services/<service>`. It is usable on exactly one of the three platforms:
+
+| platform | `java.util.ServiceLoader` |
+|----------|---------------------------|
+| JVM | yes — resolved at run time from the classpath |
+| Scala.js | **no such class** — referencing it does not compile |
+| Scala Native | present, but `load` is a link-time intrinsic that only accepts a **literal** `classOf`, so no `Class`-taking wrapper can call it |
+
+`multiarch-serviceloader` gives all three one API, driven by the **same** `META-INF/services`
+descriptor files you would write for the JVM:
+
+```scala
+libraryDependencies += "com.kubuszok" %%% "multiarch-serviceloader" % "<version>"
+```
+
+```scala
+import multiarch.serviceloader.PlatformServiceLoader
+
+// the drop-in shape: `ServiceLoader.load(classOf[Codec]).iterator()`
+val providers: Iterator[Codec] = PlatformServiceLoader.load(classOf[Codec]).iterator()
+
+// ...or the idiomatic one
+val all: List[Codec] = PlatformServiceLoader.load(classOf[Codec]).toList
+
+// providers can also be registered by hand — the only way on Scala.js without sbt
+PlatformServiceLoader.register(classOf[Codec], new JsonCodec)
+```
+
+Nothing is instantiated until the result is iterated. On the JVM `load` creates exactly one
+`java.util.ServiceLoader` and delegates to it, so its classloader and caching behaviour are the
+JDK's own.
+
+### Build setup
+
+The JVM axis needs nothing. Scala.js and Scala Native resolve providers by **registration**, and the
+plugin generates that registration code from your descriptors, so the provider list is never
+restated in the build:
+
+```scala
+import multiarch.sbt.MultiArchServiceLoaderPlugin
+
+val generatedProviders = MultiArchServiceLoaderPlugin.embeddedServiceProvidersSettings(
+  objectName = "my.lib.GeneratedServiceProviders" // default: multiarch.serviceloader.GeneratedServiceProviders
+)
+
+lazy val myLib = (projectMatrix in file("my-lib"))
+  .jvmPlatform(scalaVersions)
+  .jsPlatform(scalaVersions, settings = generatedProviders)
+  .nativePlatform(scalaVersions, settings = generatedProviders)
+```
+
+For `META-INF/services/my.lib.Codec` containing `my.lib.JsonCodec`, the generator emits
+
+```scala
+PlatformServiceLoader.register(classOf[my.lib.Codec], new my.lib.JsonCodec())
+```
+
+— a source-level reference, so a descriptor naming a class that was renamed or never ported fails
+the **compile**, where the JVM's own answer is a silently empty iterator.
+
+The generated object registers from its initializer, so reference it once from your entry point or
+dead-code elimination will drop it:
+
+```scala
+val _ = my.lib.GeneratedServiceProviders
+```
+
+Scala Native's `nativeConfig.withServiceProviders(...)` enlistment is **not** needed for this module:
+it applies to direct `java.util.ServiceLoader.load(classOf[Concrete])` call sites, which this wrapper
+deliberately is not. Generated registrations are ordinary source references and link on their own.
+
 ## Collision detection
 
 Two providers bundling the same native library file for the same platform would silently

@@ -42,6 +42,10 @@ jobs:
       - uses: sbt/setup-sbt@v1
       - name: Run core tests
         run: sbt +core/test
+      # multiarch-serviceloader is a projectMatrix, so each row is its own project (no `+`).
+      # The Native rows need a local toolchain and are run from a developer machine instead.
+      - name: Run multiarch-serviceloader tests (JVM + Scala.js)
+        run: sbt multiarchServiceLoader/test multiarchServiceLoader3/test multiarchServiceLoaderJS/test multiarchServiceLoaderJS3/test
 
   # ── Build sn-provider-curl artifact ───────────────────────
   build-curl-provider:

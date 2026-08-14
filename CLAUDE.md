@@ -8,9 +8,11 @@ native library distribution and JVM application packaging in Scala.
 | Directory | Purpose |
 |-----------|---------|
 | `core/` | Shared models, JSON codec, extraction logic, `NativeLibLoader` — sbt-independent |
+| `multiarch-resources/` | Cross-platform (JVM/JS/Native) classpath-resource access — `projectMatrix` |
+| `multiarch-serviceloader/` | Cross-platform (JVM/JS/Native) `java.util.ServiceLoader` stand-in — `projectMatrix` |
 | `panama-api/` | Panama FFM abstraction trait + PanamaPort provider — Scala 3, JDK 17 bytecode |
 | `panama-jdk/` | JDK 22+ `java.lang.foreign` implementation of PanamaProvider — Scala 3 |
-| `plugin/` | sbt AutoPlugins: NativeProviderPlugin, MultiArchJvmReleasePlugin, MultiArchNativeReleasePlugin, AndroidPlugin |
+| `plugin/` | sbt AutoPlugins: NativeProviderPlugin, MultiArchJvmReleasePlugin, MultiArchNativeReleasePlugin, AndroidPlugin; plus the `MultiArchResourcesPlugin` / `MultiArchServiceLoaderPlugin` codegen helpers |
 | `sn-provider-curl/` | Pre-built static curl for 6 desktop platforms |
 | `test-project-native/` | Integration test: Scala Native linking with curl |
 | `test-project-jlink/` | Integration test: JLink packaging |
@@ -120,6 +122,11 @@ sbt test                              # Core unit tests
 sbt test-project-native/nativeLink    # Integration: SN + curl provider
 sbt test-project-jlink/releasePackage # Integration: JLink packaging
 ```
+
+`multiarch-resources` and `multiarch-serviceloader` are `projectMatrix` modules: every
+platform × Scala-version row is its own project, so `+x/test` does not apply. The rows are
+`<module>` (JVM 2.13), `<module>3`, `<module>JS`, `<module>JS3`, `<module>Native`,
+`<module>Native3` — e.g. `sbt multiarchServiceLoaderJS3/test`. Native rows need a local clang.
 
 ## Skill Dispatch
 

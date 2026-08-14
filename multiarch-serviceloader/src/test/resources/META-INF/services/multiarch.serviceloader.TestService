@@ -1,0 +1,4 @@
+# Provider-configuration file in the JDK's own format: one provider per line, '#' starts a comment.
+multiarch.serviceloader.AlphaProvider
+
+multiarch.serviceloader.BetaProvider   # trailing comment, and a blank line above

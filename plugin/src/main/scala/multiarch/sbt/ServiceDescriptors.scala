@@ -36,9 +36,13 @@ object ServiceDescriptors {
     }
   }
 
-  /** Parse one provider-configuration file into its provider class names. */
+  /** Parse one provider-configuration file into its provider class names.
+    *
+    * The leading UTF-8 BOM is stripped before line-splitting: `U+FEFF` is not whitespace, so left in place it becomes part of the FIRST provider's name and the generator emits `new <bom>com.foo.X()`
+    * — a compile error in a generated file whose message never names the cause.
+    */
   def providersIn(file: File): Seq[String] =
-    new String(Files.readAllBytes(file.toPath), StandardCharsets.UTF_8).linesIterator.map(stripComment).map(_.trim).filter(_.nonEmpty).toVector
+    new String(Files.readAllBytes(file.toPath), StandardCharsets.UTF_8).stripPrefix("\uFEFF").linesIterator.map(stripComment).map(_.trim).filter(_.nonEmpty).toVector
 
   private def stripComment(line: String): String = {
     val hash = line.indexOf('#')

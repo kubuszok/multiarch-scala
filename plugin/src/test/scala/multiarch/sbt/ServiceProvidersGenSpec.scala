@@ -47,6 +47,15 @@ class ServiceProvidersGenSpec extends munit.FunSuite {
     }
   }
 
+  test("a UTF-8 BOM does not become part of the first provider's name") {
+    withTempDir { dir =>
+      val resDir = new File(dir, "res")
+      descriptor(resDir, "p.Service", "\uFEFFp.First\np.Second\n")
+
+      assertEquals(ServiceDescriptors.read(resDir), Seq("p.Service" -> Seq("p.First", "p.Second")))
+    }
+  }
+
   test("read returns nothing when there is no META-INF/services directory") {
     withTempDir { dir =>
       val resDir = new File(dir, "res")

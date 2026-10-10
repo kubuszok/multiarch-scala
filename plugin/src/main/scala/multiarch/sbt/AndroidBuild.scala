@@ -264,6 +264,11 @@ object AndroidBuild {
         addFilesToZipWithPaths(apkBase, extractedNativeLibs)
       }
 
+      // Java resources of dependency JARs go to the APK root, where ClassLoader.getResource finds
+      // them on Android (as Gradle packages them). The project's own resources stay in assets/.
+      val dependencyJars = cp.filter(f => f.isFile && f.getName.endsWith(".jar") && f.getName != "android.jar")
+      addDependencyResources(apkBase, dependencyJars, log)
+
       val aligned = target / "app-aligned.apk"
       val zPath   = AndroidSdk.zipalign(sdk)
       log.info("Zipaligning APK...")
@@ -459,6 +464,67 @@ object AndroidBuild {
     }
 
     result.toSeq
+  }
+
+  /** Whether a dependency JAR entry is a Java resource the APK must carry: not a class (dexed), not JAR metadata, not multiarch's native layout (moved to `lib/<abi>/`), and not Scala's compile-time
+    * `.tasty` metadata.
+    */
+  private[sbt] def isDependencyResource(name: String): Boolean =
+    !name.endsWith("/") && !name.endsWith(".class") && !name.endsWith(".tasty") &&
+      !name.startsWith("META-INF/") && !name.startsWith("native/")
+
+  /** Copies the Java resources of `jars` into the root of `apk`. An entry the APK already has, or one an earlier JAR supplied, is kept and the later one skipped with a warning naming both sources.
+    * Returns the number of entries added.
+    */
+  private[sbt] def addDependencyResources(apk: File, jars: Seq[File], log: sbt.util.Logger): Int = {
+    import scala.jdk.CollectionConverters._
+    val tmpApk = new File(apk.getParent, apk.getName + ".tmp")
+    val zipIn  = new java.util.zip.ZipFile(apk)
+    val zipOut = new java.util.zip.ZipOutputStream(new java.io.FileOutputStream(tmpApk))
+    val owner  = scala.collection.mutable.Map.empty[String, String]
+    var added  = 0
+    try {
+      zipIn.entries().asScala.foreach { entry =>
+        val newEntry = new java.util.zip.ZipEntry(entry.getName)
+        if (entry.getMethod == java.util.zip.ZipEntry.STORED) {
+          newEntry.setMethod(java.util.zip.ZipEntry.STORED)
+          newEntry.setSize(entry.getSize)
+          newEntry.setCompressedSize(entry.getCompressedSize)
+          newEntry.setCrc(entry.getCrc)
+        }
+        zipOut.putNextEntry(newEntry)
+        val is = zipIn.getInputStream(entry)
+        try is.transferTo(zipOut)
+        finally is.close()
+        zipOut.closeEntry()
+        owner(entry.getName) = apk.getName
+      }
+      jars.foreach { jar =>
+        val jarIn = new java.util.zip.ZipFile(jar)
+        try
+          jarIn.entries().asScala.filter(e => isDependencyResource(e.getName)).foreach { entry =>
+            owner.get(entry.getName) match {
+              case Some(first) =>
+                log.warn(s"Duplicate resource ${entry.getName}: keeping the one from $first, skipping ${jar.getName}")
+              case None =>
+                owner(entry.getName) = jar.getName
+                zipOut.putNextEntry(new java.util.zip.ZipEntry(entry.getName))
+                val is = jarIn.getInputStream(entry)
+                try is.transferTo(zipOut)
+                finally is.close()
+                zipOut.closeEntry()
+                added += 1
+            }
+          }
+        finally jarIn.close()
+      }
+    } finally {
+      zipOut.close()
+      zipIn.close()
+    }
+    IO.move(tmpApk, apk)
+    log.info(s"Added $added Java resources from ${jars.size} dependency JARs")
+    added
   }
 
   /** Adds files with custom archive paths to an existing zip/APK. */

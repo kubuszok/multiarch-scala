@@ -142,4 +142,30 @@ object AndroidDeps {
     }
     jarFile
   }
+
+  /** The R8/D8 release `androidDex` runs by default.
+    *
+    * PanamaPort reads `Build.VERSION.SDK_INT_FULL` (API 36+) unguarded and relies on D8 (8.13 or newer) rewriting each read into a backport that answers `SDK_INT * 100000` below API 36. The D8
+    * shipped in build-tools 35 leaves the read in place, so every app died with `NoSuchFieldError` on API 26–35. The library asks for AGP 9.1.1+, whose R8 is the 9.1 line.
+    */
+  val r8Version = "9.1.56"
+
+  /** Google Maven URL of the self-contained R8 JAR (it also carries `com.android.tools.r8.D8`). */
+  def r8Url(version: String): String =
+    s"https://dl.google.com/android/maven2/com/android/tools/r8/$version/r8-$version.jar"
+
+  /** Resolve the R8 JAR of the given version, downloading it into `cacheDir` once. */
+  def resolveR8(cacheDir: File, version: String, log: sbt.util.Logger): File = {
+    IO.createDirectory(cacheDir)
+    val jarFile = cacheDir / s"r8-$version.jar"
+    if (!jarFile.exists()) {
+      val partial = cacheDir / s"r8-$version.jar.part"
+      log.info(s"Downloading R8 $version from ${r8Url(version)}")
+      val in = java.net.URI.create(r8Url(version)).toURL.openStream()
+      try IO.transfer(in, partial)
+      finally in.close()
+      IO.move(partial, jarFile)
+    }
+    jarFile
+  }
 }

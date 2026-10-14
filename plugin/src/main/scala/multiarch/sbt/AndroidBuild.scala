@@ -25,11 +25,12 @@ object AndroidBuild {
   val androidTargetSdk         = settingKey[Int]("Target Android SDK version")
   val androidBuildToolsVersion = settingKey[String]("Android build-tools version")
 
-  val androidR8Rules = settingKey[Option[File]]("Optional ProGuard/R8 rules file for shrinking and optimization")
-  val androidDex     = taskKey[File]("Compile classes to DEX format using R8")
-  val androidPackage = taskKey[File]("Package APK using aapt2")
-  val androidSign    = taskKey[File]("Sign APK using apksigner with debug keystore")
-  val androidInstall = taskKey[Unit]("Install APK on connected device via adb")
+  val androidR8Version = settingKey[String]("R8/D8 version androidDex downloads from Google Maven (the build-tools D8 is too old for PanamaPort)")
+  val androidR8Rules   = settingKey[Option[File]]("Optional ProGuard/R8 rules file for shrinking and optimization")
+  val androidDex       = taskKey[File]("Compile classes to DEX format using R8")
+  val androidPackage   = taskKey[File]("Package APK using aapt2")
+  val androidSign      = taskKey[File]("Sign APK using apksigner with debug keystore")
+  val androidInstall   = taskKey[Unit]("Install APK on connected device via adb")
 
   // ── Settings ────────────────────────────────────────────────────────
 
@@ -42,6 +43,7 @@ object AndroidBuild {
     androidMinSdk := AndroidSdk.minSdkVersion,
     androidTargetSdk := AndroidSdk.targetSdkVersion,
     androidBuildToolsVersion := AndroidSdk.buildToolsVersion,
+    androidR8Version := AndroidDeps.r8Version,
     androidR8Rules := None,
 
     // SDK resolution — task, only runs when android tasks are invoked
@@ -152,10 +154,13 @@ object AndroidBuild {
 
       // DEX compilation via D8 (com.android.tools.r8.D8).
       // D8 does pure DEX conversion + desugaring without class hierarchy validation.
-      val r8Jar  = AndroidSdk.r8Jar(sdk)
-      val minApi = androidMinSdk.value
+      // The pinned R8 release, not build-tools' d8.jar: only D8 8.13+ backports
+      // PanamaPort's unguarded `Build.VERSION.SDK_INT_FULL` reads for API < 36.
+      val r8Version = androidR8Version.value
+      val r8Jar     = AndroidDeps.resolveR8(streams.value.cacheDirectory / "r8", r8Version, log)
+      val minApi    = androidMinSdk.value
 
-      log.info(s"Running D8 (minApi=$minApi) ...")
+      log.info(s"Running D8 $r8Version (minApi=$minApi) ...")
       val d8Cmd = Seq(
         "java",
         "-cp",

@@ -1,6 +1,6 @@
 package multiarch.core
 
-import java.nio.file.{ Files, Path, StandardCopyOption }
+import java.nio.file.{ Files, Path, Paths, StandardCopyOption }
 import java.util.concurrent.ConcurrentHashMap
 
 /** Loads platform-specific native shared libraries at runtime on the JVM.
@@ -252,11 +252,14 @@ object NativeLibLoader {
       }
   }
 
-  /** Search `java.library.path` for the mapped library name. Splits on `File.pathSeparator` — multiple directories are supported. */
+  /** Search `java.library.path` for the mapped library name. Splits on `File.pathSeparator` — multiple directories are supported.
+    *
+    * `Paths.get`, never `Path.of`: Android has `Path.of` only from API 34.
+    */
   private def findOnLibraryPath(mapped: String): Option[Path] = {
     val libPath = System.getProperty("java.library.path", "")
     val paths   = libPath.split(java.io.File.pathSeparator)
-    paths.iterator.map(dir => Path.of(dir, mapped)).find(Files.exists(_))
+    paths.iterator.map(dir => Paths.get(dir, mapped)).find(Files.exists(_))
   }
 
   /** Resolve via the manifest-v2 index: 0 owners -> None (fall through); more than one distinct artifact+version -> collision error; exactly 1 -> extract
@@ -326,7 +329,7 @@ object NativeLibLoader {
       val cl   = getClass.getClassLoader
       val m    = cl.getClass.getMethod("findLibrary", classOf[String])
       val path = m.invoke(cl, libName).asInstanceOf[String]
-      if (path != null) return Some(Path.of(path))
+      if (path != null) return Some(Paths.get(path))
     } catch {
       case _: Exception => () // fall through
     }

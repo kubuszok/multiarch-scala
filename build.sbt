@@ -314,7 +314,6 @@ lazy val snProviderCurl = project
     name := "sn-provider-curl",
     autoScalaLibrary := false,
     crossPaths := false,
-    Compile / packageSrc / publishArtifact := false,
     // Versioned v2 resource layout: native/<artifact>/<version>/<classifier>/<file>.
     Compile / packageBin / mappings ++= {
       val nativesDir = baseDirectory.value / "natives"

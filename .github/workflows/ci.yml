@@ -7,10 +7,23 @@ on:
     branches: [master]
 
 env:
-  JAVA_VERSION: "25"
+  JAVA_VERSION: "25.0.3"
   JAVA_DISTRIBUTION: "zulu"
 
 jobs:
+  # ── Check formatting ────────────────────────────────────────────────
+  check-formatting:
+    runs-on: ubuntu-latest
+    name: Check formatting
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0 # .scalafmt.conf `project.git = true` needs git
+      - uses: coursier/setup-action@v3.1.0
+        with:
+          apps: scalafmt # uses the version from .scalafmt.conf; covers build.sbt too
+      - run: scalafmt --check
+
   # ── Compile core + plugin ───────────────────────────────────────────
   compile:
     runs-on: ubuntu-latest

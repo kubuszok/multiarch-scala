@@ -423,6 +423,18 @@ lazy val myAppLinux = (project in file("my-app-linux"))
 
 Requires `zig` installed on PATH.
 
+## Agent skills
+
+Skills that teach coding agents how to use multiarch-scala are published as the `multiarch-scala`
+plugin in [kubuszok/agent-skills](https://github.com/kubuszok/agent-skills). In Claude Code:
+
+```
+/plugin marketplace add kubuszok/agent-skills
+/plugin install multiarch-scala@kubuszok
+```
+
+See that repository's README for other agents.
+
 ## License
 
 Apache 2.0

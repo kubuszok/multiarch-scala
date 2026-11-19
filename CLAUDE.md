@@ -130,9 +130,14 @@ platform × Scala-version row is its own project, so `+x/test` does not apply. T
 
 ## Skill Dispatch
 
+The user-facing skills are the `multiarch-scala` plugin in the `kubuszok` marketplace
+(kubuszok/agent-skills, `plugins/multiarch-scala`); change them there when this library's API or
+setup changes. Install: `/plugin marketplace add kubuszok/agent-skills`, then
+`/plugin install multiarch-scala@kubuszok`.
+
 | Context | Skill |
 |---------|-------|
-| Setting up a new cross-platform Scala project | `/multiarch-setup` |
+| Setting up a new cross-platform Scala project | `/multiarch-scala:multiarch-scala-setup` |
 | Scala Native linking failures | Check flag ordering, provider discovery |
 | JVM native lib loading failures | Check NativeLibLoader resolution order |
 | Creating a new provider JAR | Follow README "How to create your own provider" |

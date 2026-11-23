@@ -19,7 +19,7 @@ jobs:
       - uses: actions/checkout@v7
         with:
           fetch-depth: 0 # .scalafmt.conf `project.git = true` needs git
-      - uses: coursier/setup-action@v3.1.0
+      - uses: coursier/setup-action@v3.1.1
         with:
           apps: scalafmt # uses the version from .scalafmt.conf; covers build.sbt too
       - run: scalafmt --check

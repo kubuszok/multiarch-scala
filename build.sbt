@@ -277,7 +277,7 @@ lazy val plugin = project
       }
     },
     // sbt-scala-native HAS a sbt-2.0 (_sbt2_3) build, so keep it on both axes.
-    addSbtPlugin("org.scala-native" % "sbt-scala-native" % "0.5.12" % Provided),
+    addSbtPlugin("org.scala-native" % "sbt-scala-native" % "0.5.13" % Provided),
     // sbt-projectmatrix was merged INTO sbt 2.0 (no _sbt2_3 artifact), so add it
     // only on the sbt-1.x (Scala 2.12) axis.
     libraryDependencies ++= {
